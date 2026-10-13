@@ -9,30 +9,71 @@
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <script>
-  // Paste the web app URL of your Apps Script deployment between the quotes (it ends in /exec).
-  // People add THIS page to their home screen: it carries the icon and forwards to the app.
-  // If you ever redeploy and the app URL changes, update it here and nobody has to re-add anything.
-  var APP_URL = '';
-  if (APP_URL.indexOf('https://script.google.com/') === 0) location.replace(APP_URL);
+  // This page carries the home-screen icon and forwards to a lab's own XenoLog web app.
+  // The app is named in the link itself (?app=<deployment id>), so no lab's URL is stored in this repository.
+  // It only ever forwards to a Google Apps Script web app address.
+  function appUrl(id, domain) {
+    if (!/^[A-Za-z0-9_-]{20,}$/.test(id || '')) return '';
+    if (domain && !/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(domain)) return '';
+    return 'https://script.google.com/' + (domain ? 'a/macros/' + domain + '/' : 'macros/') + 's/' + id + '/exec';
+  }
+  // Reads the deployment id (and Workspace domain, if any) out of a pasted web app URL.
+  function parseAppUrl(text) {
+    var m = String(text || '').trim().match(/^https:\/\/script\.google\.com\/(?:a\/macros\/([a-z0-9.-]+)\/|macros\/)s\/([A-Za-z0-9_-]{20,})\/exec/i);
+    return m ? { id: m[2], domain: m[1] || '' } : null;
+  }
+  var params = new URLSearchParams(location.search);
+  var target = appUrl(params.get('app'), params.get('domain'));
+  if (target) location.replace(target);
 </script>
 <style>
-  body { font: 16px/1.5 system-ui, sans-serif; margin: 0; padding: 32px 16px; background: #eef2f1; color: #14282a; }
-  main { max-width: 32rem; margin: 0 auto; }
-  img { border-radius: 18px; display: block; }
-  code { background: #fff; padding: 1px 5px; border-radius: 4px; }
-  @media (prefers-color-scheme: dark) { body { background: #0e1819; color: #e3eceb; } code { background: #172526; } }
+  body { font: 16px/1.5 system-ui, sans-serif; margin: 0; padding: 32px 16px; background: #f9f6ea; color: #1f3324; }
+  main { max-width: 34rem; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+  img { border-radius: 22%; display: block; }
+  h1, p { margin: 0; }
+  label { font-weight: 600; }
+  input { font: inherit; width: 100%; box-sizing: border-box; padding: 10px; border: 1px solid #9db39f; border-radius: 6px; background: #fff; color: #1f3324; }
+  a.link { word-break: break-all; }
+  .box { background: #fff; border: 1px solid #c9d6c4; border-radius: 6px; padding: 12px; }
+  .warn { color: #8a3b12; }
+  @media (prefers-color-scheme: dark) {
+    body { background: #141c16; color: #e4ecdf; }
+    input, .box { background: #1d2a20; color: #e4ecdf; border-color: #3c5140; }
+    .warn { color: #f0b48c; }
+    a { color: #9fd3a4; }
+  }
 </style>
 </head>
 <body>
 <main>
   <img src="icon-192.png" width="96" height="96" alt="">
   <h1>XenoLog</h1>
-  <p id="msg">Opening the app…</p>
+  <div id="opening" hidden><p>Opening the app…</p></div>
+  <div id="setup" hidden>
+    <p>This page gives your lab's XenoLog web app a home-screen icon. Paste the web app URL from your Apps Script deployment (it ends in <code>/exec</code>) to get the link to share.</p>
+    <p><label for="url">Web app URL</label></p>
+    <input id="url" type="url" inputmode="url" autocomplete="off" placeholder="https://script.google.com/macros/s/…/exec">
+    <p id="bad" class="warn" hidden>That does not look like an Apps Script web app URL.</p>
+    <div id="result" class="box" hidden>
+      <p><strong>Link for your lab</strong></p>
+      <p><a id="out" class="link" href="#"></a></p>
+      <p>Open this link on a phone and choose “Add to Home Screen”. The icon appears on the home screen and opens your app.</p>
+    </div>
+  </div>
   <noscript><p>JavaScript is needed to open the app.</p></noscript>
 </main>
 <script>
-  if (APP_URL.indexOf('https://script.google.com/') !== 0) {
-    document.getElementById('msg').innerHTML = 'This page is not set up yet. Edit <code>docs/index.html</code> and paste your web app URL into <code>APP_URL</code>.';
+  if (target) document.getElementById('opening').hidden = false;
+  else {
+    document.getElementById('setup').hidden = false;
+    document.getElementById('url').addEventListener('input', function (e) {
+      var p = parseAppUrl(e.target.value), out = document.getElementById('out');
+      document.getElementById('bad').hidden = !!p || !e.target.value.trim();
+      document.getElementById('result').hidden = !p;
+      if (!p) return;
+      var link = location.origin + location.pathname + '?app=' + encodeURIComponent(p.id) + (p.domain ? '&domain=' + encodeURIComponent(p.domain) : '');
+      out.href = link; out.textContent = link;
+    });
   }
 </script>
 </body>
