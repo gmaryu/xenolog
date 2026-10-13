@@ -1,0 +1,9 @@
+<div id="app"></div>
+<nav class="tabs" aria-label="Main"><div id="tabs"></div></nav>
+<div id="toast" role="status" hidden></div>
+<div id="zoom" hidden></div>
+<div id="cropper" hidden></div>
+<!-- File inputs live outside #app so a re-render while the camera is open cannot detach them. -->
+<input type="file" accept="image/*" capture="environment" id="file-cam" class="sr-file" tabindex="-1" aria-hidden="true">
+<input type="file" accept="image/*" id="file-lib" class="sr-file" tabindex="-1" aria-hidden="true">
+<div id="busy" role="status" hidden>Working...</div>

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>XenoLog</title>
+<meta name="apple-mobile-web-app-title" content="XenoLog">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<script>
+  // Paste the web app URL of your Apps Script deployment between the quotes (it ends in /exec).
+  // People add THIS page to their home screen: it carries the icon and forwards to the app.
+  // If you ever redeploy and the app URL changes, update it here and nobody has to re-add anything.
+  var APP_URL = '';
+  if (APP_URL.indexOf('https://script.google.com/') === 0) location.replace(APP_URL);
+</script>
+<style>
+  body { font: 16px/1.5 system-ui, sans-serif; margin: 0; padding: 32px 16px; background: #eef2f1; color: #14282a; }
+  main { max-width: 32rem; margin: 0 auto; }
+  img { border-radius: 18px; display: block; }
+  code { background: #fff; padding: 1px 5px; border-radius: 4px; }
+  @media (prefers-color-scheme: dark) { body { background: #0e1819; color: #e3eceb; } code { background: #172526; } }
+</style>
+</head>
+<body>
+<main>
+  <img src="icon-192.png" width="96" height="96" alt="">
+  <h1>XenoLog</h1>
+  <p id="msg">Opening the app…</p>
+  <noscript><p>JavaScript is needed to open the app.</p></noscript>
+</main>
+<script>
+  if (APP_URL.indexOf('https://script.google.com/') !== 0) {
+    document.getElementById('msg').innerHTML = 'This page is not set up yet. Edit <code>docs/index.html</code> and paste your web app URL into <code>APP_URL</code>.';
+  }
+</script>
+</body>
+</html>
