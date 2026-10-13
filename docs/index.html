@@ -24,7 +24,12 @@
   }
   var params = new URLSearchParams(location.search);
   var target = appUrl(params.get('app'), params.get('domain'));
-  if (target) location.replace(target);
+  // "&add=1" is the link people open once to put the icon on their home screen. Forwarding straight away would
+  // leave them on Google's page, and the home screen would then save that page, which has no icon. So this visit
+  // stays here, and the address is swapped for the forwarding one so that is what the home screen saves.
+  var adding = target && params.get('add') === '1';
+  if (adding) { params.delete('add'); history.replaceState(null, '', location.pathname + '?' + params.toString()); }
+  else if (target) location.replace(target);
 </script>
 <style>
   body { font: 16px/1.5 system-ui, sans-serif; margin: 0; padding: 32px 16px; background: #f9f6ea; color: #1f3324; }
@@ -49,6 +54,15 @@
   <img src="icon-192.png" width="96" height="96" alt="">
   <h1>XenoLog</h1>
   <div id="opening" hidden><p>Opening the app…</p></div>
+  <div id="add" hidden>
+    <p><strong>Add this page to your home screen.</strong></p>
+    <div class="box">
+      <p><strong>iPhone (Safari):</strong> tap the Share button, then “Add to Home Screen”.</p>
+      <p><strong>Android (Chrome):</strong> open the ⋮ menu, then “Add to Home screen”.</p>
+    </div>
+    <p>Do it from this page, before opening the app. The icon on your home screen will then open the app directly.</p>
+    <p><a id="open-now" href="#">Open the app without adding</a></p>
+  </div>
   <div id="setup" hidden>
     <p>This page gives your lab's XenoLog web app a home-screen icon. Paste the web app URL from your Apps Script deployment (it ends in <code>/exec</code>) to get the link to share.</p>
     <p><label for="url">Web app URL</label></p>
@@ -57,13 +71,14 @@
     <div id="result" class="box" hidden>
       <p><strong>Link for your lab</strong></p>
       <p><a id="out" class="link" href="#"></a></p>
-      <p>Open this link on a phone and choose “Add to Home Screen”. The icon appears on the home screen and opens your app.</p>
+      <p>Share this link. Each person opens it once on their phone and follows the steps shown to add the icon to the home screen.</p>
     </div>
   </div>
   <noscript><p>JavaScript is needed to open the app.</p></noscript>
 </main>
 <script>
-  if (target) document.getElementById('opening').hidden = false;
+  if (adding) { document.getElementById('add').hidden = false; document.getElementById('open-now').href = target; }
+  else if (target) document.getElementById('opening').hidden = false;
   else {
     document.getElementById('setup').hidden = false;
     document.getElementById('url').addEventListener('input', function (e) {
@@ -71,7 +86,7 @@
       document.getElementById('bad').hidden = !!p || !e.target.value.trim();
       document.getElementById('result').hidden = !p;
       if (!p) return;
-      var link = location.origin + location.pathname + '?app=' + encodeURIComponent(p.id) + (p.domain ? '&domain=' + encodeURIComponent(p.domain) : '');
+      var link = location.origin + location.pathname + '?app=' + encodeURIComponent(p.id) + (p.domain ? '&domain=' + encodeURIComponent(p.domain) : '') + '&add=1';
       out.href = link; out.textContent = link;
     });
   }

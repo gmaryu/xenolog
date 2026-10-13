@@ -72,7 +72,7 @@ An Apps Script web app cannot set its own home-screen icon on iPhone. The `docs/
 
 1. Enable GitHub Pages for the repository with the `docs/` folder of the main branch as the source.
 2. Open the published page, paste your web app URL, and copy the link it gives you.
-3. Have people open that link on their phone and add it to the home screen.
+3. Have people open that link once on their phone. It shows a page with the icon and the steps for adding it to the home screen; they add that page, not the app itself. Afterwards the home-screen icon opens the app directly.
 4. Optionally set `FAVICON_URL` in `Code.gs` to the published `favicon-32.png` for the browser tab.
 
 You can also use the page published from the original repository instead of your own copy. The link contains your deployment ID, so treat it like the app URL itself; the app still requires sign-in if you limited access in step 8. If you redeploy as a new deployment, the ID changes and people must add the new link. This page has not been tested on every phone.
