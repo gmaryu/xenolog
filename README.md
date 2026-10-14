@@ -55,7 +55,7 @@ To update the code later, replace `Code.gs` and `Index.html` only; your `Setting
 | Photos | One row per photo, with a thumbnail and the cropped back (the "Embedding" column is no longer used) |
 | Match log | What the automatic ranking suggested and what the person chose |
 | Timing | One row per frog in a saved priming: seconds from opening the tank to each step, retakes, crop corrections, resting frogs tried, matching time, photo size, device and app version. Kept for measuring the app in use |
-| ULAM view | A flat export of the collected records, rebuilt after each change |
+| Vet view | A flat export of the collected records for the veterinary staff, rebuilt after each change |
 | Import check | Problems found by the optional legacy import |
 
 You can edit Frogs and Records by hand. Keep the header row and column order, and leave `Record ID` and `State` alone.
@@ -96,7 +96,7 @@ Put image files named after the frog (`125.jpg`, `125 back.png`) into the `impor
 
 ### Legacy records (optional)
 
-`importLegacy` in `Code.gs` reads two sheets from the original lab's spreadsheet ("Form Responses 1" from a Google Form, and "Shared with ULAM"). It is specific to those column layouts. Skip it for a new colony, or adapt it to your own history.
+`importLegacy` in `Code.gs` reads two sheets from the original lab's spreadsheet ("Form Responses 1" from a Google Form, and "Shared with ULAM", the sheet the veterinary staff read). It is specific to those column layouts. Skip it for a new colony, or adapt it to your own history.
 
 ## Privacy and data
 

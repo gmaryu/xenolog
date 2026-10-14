@@ -16,7 +16,7 @@ FAKE.addSheet('Form Responses 1', [FH,
   ['t','','x','1/1/2025','','','','','','','','',''],
   ['t','119','GH','7/15/2026','RO','Few','Bad','Good','None','None','','',''],
   ['','','','','','','','','','','','','']]);
-FAKE.addSheet('Shared with ULAM', [ULAM_COLS,
+FAKE.addSheet('Shared with ULAM', [VET_COLS,
   ['15','','','','10/9/2026','Normal','Good','','Many','Great','','MilliQ','','','',''],
   ['76','','','','9/8/2023','good','bad','','few','ok','','Milli-Q','','','',''],
   ['88','','','','9/13/2023','none','-','','few','bad','','Milli-Q','-','','',''],
@@ -34,7 +34,7 @@ const F = id => st.frogs.find(f => f.id === id);
 assert.equal(st.user, 'tester'); assert.equal(st.frogs.filter(f => f.inColony).length, 17);
 assert.equal(F(15).restUntil, '2027-01-02'); assert.equal(F(10).lastPriming, '2026-03-24'); assert.equal(F(10).restUntil, '2026-06-24');
 assert.equal(F(119).restUntil, '2026-10-15'); assert.equal(F(130).restUntil, '2026-12-26'); assert.equal(F(61).lastPriming, '');
-console.log('ULAM view rows:', FAKE.book.sheets['ULAM view'].data.length - 1, FAKE.book.sheets['ULAM view'].data[1].join(','));
+console.log('Vet view rows:', FAKE.book.sheets['Vet view'].data.length - 1, FAKE.book.sheets['Vet view'].data[1].join(','));
 // priming
 assert.throws(() => savePriming({ items: [{ id: 15 }] }), /resting until 2027-01-02/);
 assert.throws(() => savePriming({ items: [{ id: 1 }] }), /not in the colony/);
@@ -109,7 +109,7 @@ st = returnFrog(rid); assert.equal(F(10).open, null); assert.throws(() => return
 st = updateRecord(rid, { sqCa: 'Looking good', laidCa: '', comments: 'after return' });
 let det = getFrogDetail(10); assert.equal(det.records[0].comments, 'after return'); assert.equal(det.records[0].state, 'Returned'); assert.equal(det.records.length, 2); assert.equal(det.photos.length, 1);
 st = returnFrog(F(11).open.id); det = getFrogDetail(11); assert.equal(det.records[0].state, 'Not used'); assert.equal(F(11).restUntil, '2027-01-13');
-const ul = FAKE.book.sheets['ULAM view'].data; assert.ok(ul.some(r => r[0] === 10 && r[4] === '2026-10-15' && r[1] === 1 && r[12] === 'after return'));
+const ul = FAKE.book.sheets['Vet view'].data; assert.ok(ul.some(r => r[0] === 10 && r[4] === '2026-10-15' && r[1] === 1 && r[12] === 'after return'));
 // remove a photo that shows the wrong frog
 const p10 = getFrogDetail(10).photos.length; addPhoto(10, photo); let d10 = getFrogDetail(10); assert.equal(d10.photos.length, p10 + 1);
 const wrong = d10.photos[d10.photos.length - 1].photoId; d10 = removePhoto(10, wrong); assert.equal(d10.photos.length, p10);

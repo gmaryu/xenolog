@@ -4,7 +4,7 @@
  * public functions below through google.script.run. Functions ending in "_" are private.
  *
  * This script only writes to the sheets it creates (Frogs, Records, Photos, Match log,
- * Timing, ULAM view, Import check). It reads "Form Responses 1" and "Shared with ULAM" during
+ * Timing, Vet view, Import check). It reads "Form Responses 1" and "Shared with ULAM" during
  * the one-time import and never changes them.
  */
 
@@ -50,8 +50,8 @@ const PHOTOS_PER_FROG = 5;      // newest photos sent to the page for comparison
 const CELL_LIMIT = 49000;       // Sheets refuses cells over 50,000 characters
 
 const APP_VERSION = '1.0.0';   // written into the Timing sheet, so collected data can be tied to a release
-const SHEETS = { FROGS: 'Frogs', RECORDS: 'Records', PHOTOS: 'Photos', MATCH: 'Match log', TIMING: 'Timing', ULAM: 'ULAM view', CHECK: 'Import check' };
-const LEGACY = { FORM: 'Form Responses 1', ULAM: 'Shared with ULAM' };
+const SHEETS = { FROGS: 'Frogs', RECORDS: 'Records', PHOTOS: 'Photos', MATCH: 'Match log', TIMING: 'Timing', VET: 'Vet view', CHECK: 'Import check' };
+const LEGACY = { FORM: 'Form Responses 1', SHARED: 'Shared with ULAM' };
 
 const FROG_COLS = ['Animal ID', 'Status', 'Tank', 'Arrival date', 'Source', 'Notes', 'Removed on', 'Updated at', 'Updated by', 'Removal reason'];
 const REC_COLS = ['Record ID', 'Animal ID', 'Priming Date', 'Collection Date', 'Name', 'MMR H2O source',
@@ -65,7 +65,7 @@ const MATCH_COLS = ['Time', 'User', 'Tank', 'Chosen ID', 'Suggested ID', 'Agreed
 const TIMING_COLS = ['Time', 'User', 'Version', 'Animal ID', 'Tank', 'Tank opened', 'Photo (s)', 'Crop (s)', 'Match (s)', 'Picked (s)', 'Saved (s)',
   'Photos taken', 'Back found automatically', 'Crop adjusted', 'Compare opens', 'Tank opens', 'Resting frogs tried', 'Match ms', 'Photo size', 'Device', 'Matcher load ms',
   'Earlier tanks (s)'];
-const ULAM_COLS = ['Animal ID', 'System #', 'Arrival Date', 'Source', 'Collection Date', '# Collected (Laid)', 'Appearance (Laid)',
+const VET_COLS = ['Animal ID', 'System #', 'Arrival Date', 'Source', 'Collection Date', '# Collected (Laid)', 'Appearance (Laid)',
   'After Ca2+ (Laid)', '# Collected (Squeezed)', 'Appearance (Squeezed)', 'After Ca2+ (Squeezed)', 'MMR H2O source', 'Notes',
   'Fertilized', '% viable pre-injection', '% viable post-injection'];
 const CHECK_COLS = ['Source sheet', 'Row', 'Animal ID', 'Issue', 'Detail'];
@@ -94,7 +94,7 @@ function onOpen() {
     .addItem('2. Import legacy records', 'importLegacy')
     .addItem('Import photos from Drive folder', 'importPhotos')
     .addItem('Choose photo folder', 'choosePhotoFolder')
-    .addItem('Rebuild ULAM view', 'rebuildUlamView')
+    .addItem('Rebuild Vet view', 'rebuildVetView')
     .addToUi();
 }
 
@@ -401,7 +401,7 @@ function saveRecord(recordId, f) {
       pick_(f.laidQty, O.quantity), pick_(f.laidApp, O.appearance), pick_(f.laidCa, O.ca),
       s_(f.comments), 'Recorded']]);
     touch_(rec.row);
-    rebuildUlam_();
+    rebuildVet_();
     return buildState_(false);
   });
 }
@@ -414,7 +414,7 @@ function updateRecord(recordId, f) {
     sh.getRange(rec.row, 9).setValue(pick_(f.sqCa, ca));
     sh.getRange(rec.row, 12, 1, 2).setValues([[pick_(f.laidCa, ca), s_(f.comments)]]);
     touch_(rec.row);
-    rebuildUlam_();
+    rebuildVet_();
     return buildState_(false);
   });
 }
@@ -488,17 +488,17 @@ function applyExchange() {
       const tank = Math.floor(i / setting_('tankSize')) + 1;
       if (tank !== f.tank) { sh.getRange(f.row, 3).setValue(tank); sh.getRange(f.row, 8, 1, 2).setValues([[stamp, user]]); }
     });
-    rebuildUlam_();
+    rebuildVet_();
     return buildState_(false);
   });
 }
 
-/* ------------------------------------------------------------------ ULAM view */
+/* ------------------------------------------------------------------ Vet view */
 
-function rebuildUlamView() { rebuildUlam_(); }
+function rebuildVetView() { rebuildVet_(); }
 
-// Same columns as "Shared with ULAM", rebuilt from Records whenever a record changes.
-function rebuildUlam_() {
+// For the veterinary staff. Same columns as the legacy "Shared with ULAM" sheet, rebuilt from Records whenever a record changes.
+function rebuildVet_() {
   const frogs = {};
   readFrogs_().forEach(function (f) { frogs[f.id] = f; });
   const rows = readRecords_().filter(function (r) { return r.collection; }).sort(function (a, b) {
@@ -508,9 +508,9 @@ function rebuildUlam_() {
     return [r.frog, f.tank || '', f.arrival || '', f.source || '', r.collection, r.laidQty, r.laidApp, r.laidCa, r.sqQty, r.sqApp, r.sqCa,
       r.water, r.comments, '', '', ''];
   });
-  const sh = sheet_(SHEETS.ULAM);
-  if (sh.getLastRow() > 1) sh.getRange(2, 1, sh.getLastRow() - 1, ULAM_COLS.length).clearContent();
-  if (rows.length) sh.getRange(2, 1, rows.length, ULAM_COLS.length).setValues(rows);
+  const sh = sheet_(SHEETS.VET);
+  if (sh.getLastRow() > 1) sh.getRange(2, 1, sh.getLastRow() - 1, VET_COLS.length).clearContent();
+  if (rows.length) sh.getRange(2, 1, rows.length, VET_COLS.length).setValues(rows);
 }
 
 /* ------------------------------------------------------------------ setup and import (run from the spreadsheet menu) */
@@ -538,7 +538,7 @@ function setup() {
   ensureSheet_(SHEETS.PHOTOS, PHOTO_COLS, [1, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
   ensureSheet_(SHEETS.MATCH, MATCH_COLS, [1, 2, 7]);
   if (setting_('recordTiming')) ensureSheet_(SHEETS.TIMING, TIMING_COLS, [1, 2, 3, 6, 13, 14, 17, 19, 20]);
-  ensureSheet_(SHEETS.ULAM, ULAM_COLS, [3, 4, 5, 13]);
+  ensureSheet_(SHEETS.VET, VET_COLS, [3, 4, 5, 13]);
   ensureSheet_(SHEETS.CHECK, CHECK_COLS, [5]);
   if (frogs.getLastRow() === 1 && typeof ROSTER !== 'undefined') {
     const stamp = now_();
@@ -612,17 +612,17 @@ function importLegacy() {
     add(LEGACY.FORM, i + 1, s_(f.id), f, f, 'form');
   }
 
-  const ulam = ss.getSheetByName(LEGACY.ULAM);
-  if (ulam) {
-    const uv = ulam.getDataRange().getDisplayValues();
+  const shared = ss.getSheetByName(LEGACY.SHARED);
+  if (shared) {
+    const uv = shared.getDataRange().getDisplayValues();
     for (let i = 1; i < uv.length; i++) {
       const v = uv[i], id = s_(v[0]);
       if (!id) continue;
       const collection = legacyDate_(v[4]);
       if (collection && keys[id + '|' + collection]) continue;      // the form already has this record
       const f = { collection: v[4], priming: '', name: '', laidQty: v[5], laidApp: v[6], laidCa: v[7], sqQty: v[8], sqApp: v[9], sqCa: v[10], water: v[11], comments: v[12] };
-      if (collection >= '2025-01-01') issues.push([LEGACY.ULAM, i + 1, id, 'Not in Form Responses although the form was in use (possible date typo)', collection]);
-      add(LEGACY.ULAM, i + 1, id, f, f, 'ulam');
+      if (collection >= '2025-01-01') issues.push([LEGACY.SHARED, i + 1, id, 'Not in Form Responses although the form was in use (possible date typo)', collection]);
+      add(LEGACY.SHARED, i + 1, id, f, f, 'ulam');
     }
   }
 
@@ -631,7 +631,7 @@ function importLegacy() {
   const check = sheet_(SHEETS.CHECK);
   if (check.getLastRow() > 1) check.getRange(2, 1, check.getLastRow() - 1, CHECK_COLS.length).clearContent();
   if (issues.length) check.getRange(2, 1, issues.length, CHECK_COLS.length).setValues(issues);
-  rebuildUlam_();
+  rebuildVet_();
 }
 
 /**

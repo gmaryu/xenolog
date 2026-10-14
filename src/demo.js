@@ -147,7 +147,7 @@ function demoSeed() {
   // Two frogs out of their tank today: one waiting for its egg record, one recorded and waiting to go back.
   record(8, 1, null, 'In use', 'sam');
   record(9, 1, 'great', 'Recorded', 'alex');
-  rebuildUlam_();
+  rebuildVet_();
 }
 
 /* "Photograph the frog" in the demo: take a real photo, or use a made-up photo of a frog in this tank or of one from another tank.
