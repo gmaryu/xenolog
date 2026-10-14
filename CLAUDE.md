@@ -38,4 +38,6 @@ Nothing here has been run by an automated test against real Sheets or Drive. The
 
 ## Releasing to the lab
 
-The lab deployment uses this repository's `Code.gs` and `Index.html` with the private `Settings.gs` and `Roster.gs` (`../xenolog-lab/make-deploy.sh` collects the four). After changes: rebuild, test, raise `APP_VERSION` in `Code.gs` (the Timing sheet records it so measurements can be tied to a release), then paste into the Apps Script project and update the **existing** deployment to a new version (a new deployment would change the URL).
+The lab deployment uses this repository's `Code.gs` and `Index.html` with the private `Settings.gs` and `Roster.gs` (`../xenolog-lab/make-deploy.sh` collects the four). After a code change: rebuild, test, raise `APP_VERSION` in `Code.gs` and `version` in `CITATION.cff` together (the Timing sheet records the version so measurements can be tied to a release), tag the commit `v<version>` and make a GitHub release (Zenodo mints a DOI for each release), then paste into the Apps Script project and update the **existing** deployment to a new version (a new deployment would change the URL).
+
+Changes to documentation or to `CITATION.cff` metadata alone need no new version or release; fix the metadata of an existing Zenodo record on Zenodo itself. Patch (1.0.1) for fixes, minor (1.1.0) for features that keep the sheets as they are, major (2.0.0) when existing sheets or `Settings.gs` need migrating. During data collection (from 2026-11-01) change the code only to fix faults.
