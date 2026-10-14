@@ -1,0 +1,28 @@
+cff-version: 1.2.0
+message: "If you use XenoLog, please cite it using the metadata below."
+type: software
+title: "XenoLog: a phone-based tool for priming records, rest periods and photo-assisted identification in Xenopus laevis colonies"
+abstract: >-
+  XenoLog is a phone web app for Xenopus laevis colonies. It records which
+  female was primed and when, enforces a rest period between primings,
+  collects the egg record on the day of collection, and keeps photos of each
+  frog's back. A photo taken at the bench is matched in the browser against
+  earlier photos of the frogs in the same housing tank (ORB keypoints with
+  geometric verification, OpenCV.js); the match is a suggestion that a person
+  confirms. It runs as a Google Apps Script web app bound to a spreadsheet,
+  with no server to maintain.
+authors:
+  - given-names: Gembu
+    family-names: Maryu
+repository-code: "https://github.com/gmaryu/xenolog"
+license: MIT
+version: "1.0.0"
+keywords:
+  - Xenopus laevis
+  - colony management
+  - animal welfare
+  - individual identification
+  - dorsal pattern
+  - laboratory records
+  - Google Apps Script
+  - OpenCV.js
