@@ -18,7 +18,7 @@ It runs as a Google Apps Script web app bound to a spreadsheet. There is no serv
 Read this before relying on it.
 
 - The app was developed for one lab and has been tested mostly against in-memory stand-ins for Sheets and Drive (`src/test-server.js`) and in a desktop browser. Real-phone testing has been limited.
-- **Automatic matching is experimental.** The app ranks the frogs in a tank by similarity to the new photo, using a general-purpose image model (DINOv2 small) run in the browser. It has not been validated beyond a handful of photos. A person always confirms the identity; treat the ranking as a hint.
+- **The pattern check is a suggestion.** After a photo is cropped, the app counts points of the back pattern that line up with earlier photos of the frogs in the same tank (ORB features with geometric verification, run in the browser with OpenCV.js). In tests on about 60 registration photos, different frogs gave 5 points or fewer and the same frog gave 15 to over 100, across photos taken on different days and backgrounds. Only a handful of same-frog pairs were available, and nothing has been measured on a phone, so a person always confirms the identity. A blurred photo, a reflection across the back, or a crop that misses the back gives no match.
 - **Automatic cropping is a starting position only.** It finds the back in most photos on a plain background and misses in others. The crop screen lets you drag and resize the square.
 - The egg-quality score and the replacement threshold are simple, adjustable rules, not validated measures.
 - The record form (water source, quantity, appearance, Ca activation) follows the original lab's form. Changing the questions means editing `Code.gs` and `src/app.js`.
@@ -49,7 +49,7 @@ To update the code later, use **Deploy > Manage deployments**, edit the existing
 |---|---|
 | Frogs | One row per frog: ID, status, tank, arrival, source |
 | Records | One row per priming, filled in at collection and at return |
-| Photos | One row per photo, with a thumbnail, the cropped back and the match vector |
+| Photos | One row per photo, with a thumbnail and the cropped back (the "Embedding" column is no longer used) |
 | Match log | What the automatic ranking suggested and what the person chose |
 | ULAM view | A flat export of the collected records, rebuilt after each change |
 | Import check | Problems found by the optional legacy import |
@@ -89,7 +89,7 @@ Put image files named after the frog (`125.jpg`, `125 back.png`) into the `impor
 ## Privacy and data
 
 - Records stay in your spreadsheet and photos in your Drive.
-- Photos are cropped and compared on the phone. The matching model and its runtime are downloaded from jsDelivr and Hugging Face the first time; no photo is sent to them.
+- Photos are cropped and compared on the phone. OpenCV.js is downloaded from jsDelivr the first time; no photo is sent anywhere except your own Drive.
 - With "Execute as: Me", the app acts with the deploying account's access, and files it creates belong to that account. Deploy from an account that will outlive individual lab members.
 
 ## Development
@@ -110,6 +110,6 @@ node test-server.js       # runs Code.gs against in-memory sheets
 
 ## Licence
 
-MIT, see `LICENSE`. The matching model (DINOv2) and Transformers.js are loaded at run time under their own licences (Apache 2.0).
+MIT, see `LICENSE`. OpenCV.js is loaded at run time under its own licence (Apache 2.0).
 
 The app icon was generated with OpenAI's ChatGPT and refined for use in this project.

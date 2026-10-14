@@ -1,9 +1,9 @@
 /* XenoLog - page logic. Talks to Code.gs through google.script.run. */
 (function () {
   var DAY = 86400000;
-  var CLEAR_LEAD = 0.05;   // "Best match" is shown only when the top similarity leads the next by this much
+  var MATCH_MIN = 10;      // matching points needed before a frog is called a match; different frogs gave 5 or fewer in tests
   var S = { data: null, thumbs: {}, basket: [], tab: 'priming', view: { name: 'tanks' }, shot: null, warn: null, confirm: null,
-    big: false, error: '', tankPhotos: {}, detail: null, full: {}, addPhoto: null, busy: 0 };
+    big: false, error: '', tankPhotos: {}, feat: {}, detail: null, full: {}, addPhoto: null, busy: 0 };
 
   /* ---------- server ---------- */
   function call(name, args, quiet) {
@@ -71,43 +71,55 @@
       S.tankPhotos[t] = r;
       ids.forEach(function (id) { var l = r[id] || []; if (l.length) l[l.length - 1].last = true; });
       if (S.view.name === 'tank' || S.view.name === 'compare') render();
+      if (S.shot && S.shot.tank === t) rank().then(function () { if (S.view.name === 'tank' || S.view.name === 'compare') render(); });
       return derive([].concat.apply([], ids.map(function (id) { return (r[id] || []).map(function (p) { p.frog = id; return p; }); })));
     }).catch(function (e) { console.warn(e); });
   }
-  // Photos registered without a crop (imported files) or without a vector get them here, once.
+  // Photos registered without a crop (imported files) get one here, once.
   var deriving = Promise.resolve();
   function derive(list) {
     deriving = deriving.then(async function () {
       for (var i = 0; i < list.length; i++) {
-        var p = list[i], d = null;
+        var p = list[i];
+        if (p.pattern) continue;
         try {
-          if (!p.pattern) {
-            var r = await Matcher.process(await call('getFullPhoto', [p.photoId], true));
-            d = { photoId: p.photoId, thumb: r.thumb, pattern: r.pattern, crop: r.crop, emb: await Matcher.embed(r.pattern) };
-          } else if (!p.emb && !p.hasEmb && Matcher.status() !== 'unavailable') {
-            var emb = await Matcher.embed(p.pattern);
-            if (emb) d = { photoId: p.photoId, thumb: p.thumb, pattern: p.pattern, crop: p.crop, emb: emb };
-          }
-          if (!d) continue;
-          p.thumb = d.thumb; p.pattern = d.pattern; p.crop = d.crop; p.emb = d.emb; p.hasEmb = !!d.emb;
-          if (p.frog && p.last) S.thumbs[p.frog] = d.thumb;
-          await call('savePhotoDerived', [[d]], true);
-          rank();
+          var r = await Matcher.process(await call('getFullPhoto', [p.photoId], true));
+          p.thumb = r.thumb; p.pattern = r.pattern; p.crop = r.crop;
+          if (p.frog && p.last) S.thumbs[p.frog] = r.thumb;
+          await call('savePhotoDerived', [[{ photoId: p.photoId, thumb: r.thumb, pattern: r.pattern, crop: r.crop, emb: '' }]], true);
+          await rank();
           if (['tanks', 'tank', 'compare', 'frog', 'frogs', 'inuse'].indexOf(S.view.name) >= 0) render();
         } catch (e) { console.warn('Could not prepare photo ' + p.photoId, e); }
       }
     });
     return deriving;
   }
-  function rank() {
+  // Pattern points of a stored photo, worked out once per session from its back image.
+  function featuresOf(p) {
+    var key = p.photoId + '|' + p.pattern.length;      // a re-crop changes the image, and with it the key
+    if (!S.feat[key]) S.feat[key] = Matcher.describe(p.pattern);
+    return S.feat[key];
+  }
+  // Counts matching points between the new photo and every earlier photo of each frog still in the tank.
+  async function rank() {
     var s = S.shot;
-    if (!s || !s.emb) return;
-    s.ranks = present(s.tank).map(function (f) {
-      var best = null;
-      refs(s.tank, f.id).forEach(function (p) { var v = p.emb ? Matcher.similarity(s.emb, p.emb) : null; if (v != null && (best == null || v > best)) best = v; });
-      return { id: f.id, score: best };
-    }).sort(function (a, b) { return (b.score == null ? -2 : b.score) - (a.score == null ? -2 : a.score); });
-    if (s.ranks.every(function (r) { return r.score == null; })) s.ranks = null;
+    if (!s || !s.feat) return;
+    var frogs = present(s.tank), out = [];
+    for (var i = 0; i < frogs.length; i++) {
+      var list = refs(s.tank, frogs[i].id).filter(function (p) { return p.pattern; }), best = null;
+      for (var j = 0; j < list.length; j++) {
+        var f = await featuresOf(list[j]);
+        if (!f) continue;
+        var n = Matcher.count(s.feat, f);
+        if (best == null || n > best) best = n;
+        await new Promise(function (r) { setTimeout(r, 0); });      // let the page breathe between comparisons
+      }
+      out.push({ id: frogs[i].id, score: best });
+    }
+    if (S.shot !== s) return;
+    out.sort(function (a, b) { return (b.score == null ? -1 : b.score) - (a.score == null ? -1 : a.score); });
+    s.ranks = out.every(function (r) { return r.score == null; }) ? null : out;
+    s.ranked = true;
   }
   /* Crop screen: the photo with a square the person drags over the back. done() gets { full, pattern, thumb, crop }. */
   function cropEdit(r, done) {
@@ -164,21 +176,23 @@
   }
   function takeShot(file, t) {
     shoot(file, async function (p) {
-      var shot = S.shot = { tank: t, full: p.full, pattern: p.pattern, thumb: p.thumb, crop: p.crop, emb: '', ranks: null };
+      var shot = S.shot = { tank: t, full: p.full, pattern: p.pattern, thumb: p.thumb, crop: p.crop, feat: null, ranks: null, ranked: false };
       S.warn = null; render();
-      var emb = await Matcher.embed(shot.pattern);
+      shot.feat = await Matcher.describe(shot.pattern);
       if (S.shot !== shot) return;
-      shot.emb = emb; rank(); render();
+      await rank();
+      if (S.shot === shot) render();
     });
   }
   function matchNote(t) {
     var st = Matcher.status(), s = S.shot;
-    if (st === 'loading') return 'Auto-match: loading the model. This takes a while the first time.';
-    if (st === 'unavailable') return 'Auto-match is unavailable on this device. Compare the photos by eye.';
-    if (s && s.tank === t && s.emb && !s.ranks) return 'Auto-match: no earlier photos of these frogs to compare with yet.';
-    if (s && s.tank === t && !s.emb) return 'Auto-match: comparing...';
-    if (s && s.tank === t && s.ranks) return 'Auto-match is experimental and has not been validated on this colony. Confirm by eye.';
-    return '';
+    if (st === 'loading') return 'Pattern check: loading. This takes a moment the first time.';
+    if (st === 'unavailable') return 'The pattern check is unavailable on this device. Compare the photos by eye.';
+    if (!s || s.tank !== t) return '';
+    if (!s.ranked) return 'Pattern check: comparing...';
+    if (!s.ranks) return 'Pattern check: these frogs have no earlier photos to compare with yet.';
+    if (s.ranks[0].score >= MATCH_MIN) return 'The pattern check counts points of the back pattern that line up with an earlier photo. It is a suggestion; confirm by eye.';
+    return 'No match found: no earlier photo lines up with this one. A blurred photo, a reflection on the back, or a crop that misses the back can cause this. Compare by eye, or retake the photo.';
   }
 
   /* ---------- screens ---------- */
@@ -214,14 +228,14 @@
     var note = matchNote(t);
     if (note) h += '<p class="note">' + note + '</p>';
     var order = ranked(t), scored = order.length && order[0].score != null;
-    var clear = scored && (order.length < 2 || order[1].score == null || order[0].score - order[1].score >= CLEAR_LEAD);
-    if (scored && !clear) h += '<p class="note">The similarities are close, so the first frog below is only the closest, not a confident match. Compare the photos by eye.</p>';
-    h += '<h2>' + (scored ? 'Closest matches' : 'Frogs in this tank') + '</h2><div class="stack">';
+    var hits = order.filter(function (o) { return o.score != null && o.score >= MATCH_MIN; }).length;
+    if (hits > 1) h += '<div class="alert rest">More than one frog matches. One of the earlier photos may show the wrong frog. Compare carefully.</div>';
+    h += '<h2>' + (scored ? 'Pattern check' : 'Frogs in this tank') + '</h2><div class="stack">';
     if (!order.length) h += '<p class="note">No frog can be taken from this tank right now.</p>';
     order.forEach(function (o, n) {
       var f = o.f, st = status(f), r = refs(t, f.id), latest = r.length ? r[r.length - 1] : null;
-      h += '<div class="cand" id="cand-' + f.id + '"><div class="line">' + ph((latest && latest.pattern) || S.thumbs[f.id], 96, f.id) + '<div class="grow"><div class="ttl"><span class="id">#' + f.id + '</span> ' + (scored && n === 0 ? '<span class="pill ' + (clear ? 'use">Best match' : 'off">Closest') + '</span>' : '') + '</div><div>' + pill(st) + '</div><div class="sub">Last priming ' + (f.lastPriming || 'never') + ' · ' + plural(f.photos, 'photo') + '</div>' +
-        (o.score != null ? '<div class="sim">Similarity ' + o.score.toFixed(2) + '</div><div class="bar"><i style="width:' + Math.round(Math.max(0, o.score) * 100) + '%"></i></div>' : '') + '</div></div>';
+      h += '<div class="cand" id="cand-' + f.id + '"><div class="line">' + ph((latest && latest.pattern) || S.thumbs[f.id], 96, f.id) + '<div class="grow"><div class="ttl"><span class="id">#' + f.id + '</span> ' + (o.score != null && o.score >= MATCH_MIN ? '<span class="pill ok">Match</span>' : '') + '</div><div>' + pill(st) + '</div><div class="sub">Last priming ' + (f.lastPriming || 'never') + ' · ' + plural(f.photos, 'photo') + '</div>' +
+        (o.score != null ? '<div class="sim">' + plural(o.score, 'matching point') + '</div><div class="bar"><i style="width:' + Math.min(100, Math.round(o.score / (MATCH_MIN * 4) * 100)) + '%"></i></div>' : (scored ? '<div class="sim">no earlier photo</div>' : '')) + '</div></div>';
       if (S.warn === f.id) h += '<div class="alert danger">#' + f.id + ' is resting until ' + st.until + '. Put it back and take another frog.</div>';
       h += '<div class="btnrow"><button class="btn ghost" data-act="compare" data-id="' + f.id + '" id="btn-cmp-' + f.id + '">Compare photos</button><button class="btn" data-act="pick" data-id="' + f.id + '" id="btn-pick-' + f.id + '">This is #' + f.id + '</button></div></div>';
     });
@@ -234,7 +248,7 @@
     var t = v.tank, id = v.id, f = frog(id), st = status(f), has = S.shot && S.shot.tank === t, order = ranked(t), list = refs(t, id);
     var idx = Math.min(v.idx, list.length - 1), p = list[idx], h = head('Compare photos', true);
     h += '<div class="switch" role="group" aria-label="Candidate">' + order.map(function (o) {
-      return '<button data-act="compare" data-id="' + o.f.id + '" id="sw-' + o.f.id + '"' + (o.f.id === id ? ' aria-current="true"' : '') + '><span class="id">#' + o.f.id + '</span>' + (o.score != null ? ' ' + o.score.toFixed(2) : '') + '</button>';
+      return '<button data-act="compare" data-id="' + o.f.id + '" id="sw-' + o.f.id + '"' + (o.f.id === id ? ' aria-current="true"' : '') + '><span class="id">#' + o.f.id + '</span>' + (o.score != null ? ' ' + o.score : '') + '</button>';
     }).join('') + '</div>';
     var left = has ? (v.whole ? S.shot.full : S.shot.pattern) : '', right = p ? (v.whole ? (S.full[p.photoId] || p.pattern) : p.pattern) : '';
     h += '<div class="cmp' + (S.big ? ' big' : '') + '"><figure>' + bigPh(left, 'New photo', 'No new photo yet. Go back and photograph the frog.') + '<figcaption><strong>New photo</strong>' + (has ? ' · today' : '') + '</figcaption></figure>' +
@@ -408,12 +422,10 @@
       busy(-1);
       cropEdit(r, function (q) {
         busy(1);
-        Matcher.embed(q.pattern).then(function (emb) {
-          return call('savePhotoDerived', [[{ photoId: p.photoId, thumb: q.thumb, pattern: q.pattern, emb: emb, crop: 'manual' }]], true).then(function () {
-            busy(-1); p.pattern = q.pattern; p.thumb = q.thumb; p.crop = 'manual'; p.hasEmb = !!emb;
-            if (p.last) S.thumbs[id] = q.thumb;
-            delete S.tankPhotos[frog(id).tank]; render(); toast('Crop saved');
-          });
+        call('savePhotoDerived', [[{ photoId: p.photoId, thumb: q.thumb, pattern: q.pattern, emb: '', crop: 'manual' }]], true).then(function () {
+          busy(-1); p.pattern = q.pattern; p.thumb = q.thumb; p.crop = 'manual';
+          if (p.last) S.thumbs[id] = q.thumb;
+          delete S.tankPhotos[frog(id).tank]; render(); toast('Crop saved');
         }).catch(function (e) { busy(-1); fail(e); });
       });
     }).catch(function (e) { busy(-1); fail(e); });
@@ -424,8 +436,9 @@
     if (status(f).k !== 'ok') return;
     var item = { id: id, tank: t, photo: null, match: null };
     if (s && s.tank === t) {
-      item.photo = { full: s.full, pattern: s.pattern, thumb: s.thumb, emb: s.emb, crop: s.crop };
-      if (s.ranks && s.ranks[0].score != null) { item.match = { tank: t, best: s.ranks[0].id, scores: {} }; s.ranks.forEach(function (r) { if (r.score != null) item.match.scores[r.id] = Math.round(r.score * 1000) / 1000; }); }
+      item.photo = { full: s.full, pattern: s.pattern, thumb: s.thumb, emb: '', crop: s.crop };
+      // Logged for later review: what the pattern check suggested (nothing, when no frog reached the threshold) and every count.
+      if (s.ranks) { item.match = { tank: t, best: s.ranks[0].score >= MATCH_MIN ? s.ranks[0].id : '', scores: {} }; s.ranks.forEach(function (r) { if (r.score != null) item.match.scores[r.id] = r.score; }); }
     }
     S.basket.push(item); S.shot = null; go({ name: 'tanks' }); toast('#' + id + ' added to today\'s priming');
   }
@@ -514,12 +527,12 @@
     if (!file || !ctx || (el.id !== 'file-cam' && el.id !== 'file-lib')) return;
     S.fileCtx = null;
     if (ctx.kind === 'shot') takeShot(file, ctx.id);
-    else if (ctx.kind === 'newFrog') shoot(file, function (p) { S.addPhoto = p; keepForm(render); Matcher.embed(p.pattern).then(function (emb) { p.emb = emb; }); });
+    else if (ctx.kind === 'newFrog') shoot(file, function (p) { S.addPhoto = p; keepForm(render); });
     else if (ctx.kind === 'addPhoto') {
       var id = ctx.id;
       shoot(file, function (p) {
         busy(1);
-        Matcher.embed(p.pattern).then(function (emb) { return call('addPhoto', [id, { full: p.full, pattern: p.pattern, thumb: p.thumb, emb: emb, crop: p.crop }], true); })
+        call('addPhoto', [id, { full: p.full, pattern: p.pattern, thumb: p.thumb, emb: '', crop: p.crop }], true)
           .then(function (d) { busy(-1); S.thumbs[id] = p.thumb; delete S.tankPhotos[frog(id).tank]; frog(id).photos++; setDetail(d); render(); toast('Photo added'); })
           .catch(function (x) { busy(-1); fail(x); });
       });
@@ -554,7 +567,7 @@
     } else if (form.id === 'add-form') {
       var p = S.addPhoto;
       call('addFrog', [{ arrival: document.getElementById('add-date').value, source: document.getElementById('add-source').value, notes: document.getElementById('add-notes').value, tank: document.getElementById('add-tank').value,
-        photo: p ? { full: p.full, pattern: p.pattern, thumb: p.thumb, emb: p.emb || '', crop: p.crop } : null }]).then(function (st) {
+        photo: p ? { full: p.full, pattern: p.pattern, thumb: p.thumb, emb: '', crop: p.crop } : null }]).then(function (st) {
         if (p) S.thumbs[st.newId] = p.thumb;
         S.addPhoto = null; S.tankPhotos = {}; applyState(st); toast('#' + st.newId + ' added'); openFrog(st.newId);
       }).catch(fail);

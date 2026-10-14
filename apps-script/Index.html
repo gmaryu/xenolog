@@ -155,24 +155,34 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 <input type="file" accept="image/*" id="file-lib" class="sr-file" tabindex="-1" aria-hidden="true">
 <div id="busy" role="status" hidden>Working...</div>
 <script>
-/* Photo handling in the browser: resize, find the frog's back, and describe the pattern as a
-   vector so two photos can be compared. Everything here fails soft: if the back cannot be found
-   the centre of the photo is used, and if the model cannot load the app works without ranking. */
+/* Photo handling in the browser: resize, find the frog's back, and compare two back patterns by
+   counting points that line up. Everything here fails soft: if the back cannot be found the centre
+   of the photo is used, and if OpenCV cannot load the app works without a suggestion. */
 var Matcher = (function () {
-  var MODEL = 'Xenova/dinov2-small';
-  var LIB = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.2';
+  var CV_URL = 'https://cdn.jsdelivr.net/npm/@techstark/opencv-js@4.12.0-release.1/dist/opencv.js';
   var FULL = 1280, PATTERN = 256, THUMB = 128, WORK = 200;
-  var extractor = null, loading = null, status = 'idle', onStatus = function () {};
+  var MATCH_SIDE = 384, MATCH_POINTS = 800, RATIO = 0.8;   // back image is enlarged to this size; ORB keeps this many points
+  var loading = null, status = 'idle', onStatus = function () {};
 
   function setStatus(s) { status = s; try { onStatus(s); } catch (e) {} }
 
+  /** Loads OpenCV once. Resolves to true when matching can be used. */
   function load() {
     if (loading) return loading;
     setStatus('loading');
-    loading = import(LIB).then(function (lib) {
-      return lib.pipeline('image-feature-extraction', MODEL, { dtype: 'q8' });
-    }).then(function (p) { extractor = p; setStatus('ready'); return true; })
-      .catch(function (e) { console.warn('Auto-match model did not load', e); setStatus('unavailable'); return false; });
+    loading = new Promise(function (ok) {
+      var s = document.createElement('script'), timer = setTimeout(function () { ok(false); }, 90000);
+      s.src = CV_URL; s.async = true;
+      s.onerror = function () { clearTimeout(timer); ok(false); };
+      s.onload = function () {
+        var c = window.cv;
+        // The OpenCV module object has its own .then. Awaiting it, or resolving a promise with it, never finishes
+        // and freezes the page, so it is only ever used through the global and .then is removed.
+        function done() { clearTimeout(timer); try { delete c.then; } catch (e) {} ok(typeof c.ORB === 'function' && typeof c.BFMatcher === 'function'); }
+        if (!c) { clearTimeout(timer); ok(false); } else if (c.Mat) done(); else c.onRuntimeInitialized = done;
+      };
+      document.head.appendChild(s);
+    }).then(function (good) { setStatus(good ? 'ready' : 'unavailable'); return good; });
     return loading;
   }
 
@@ -375,36 +385,65 @@ var Matcher = (function () {
     });
   }
 
-  function toBase64(f32) { var b = new Uint8Array(f32.buffer), s = '', i; for (i = 0; i < b.length; i++) s += String.fromCharCode(b[i]); return btoa(s); }
-  function fromBase64(s) { if (!s) return null; try { var bin = atob(s), b = new Uint8Array(bin.length), i; for (i = 0; i < bin.length; i++) b[i] = bin.charCodeAt(i); return new Float32Array(b.buffer); } catch (e) { return null; } }
-  function unit(v) { var n = 0, i; for (i = 0; i < v.length; i++) n += v[i] * v[i]; n = Math.sqrt(n) || 1; for (i = 0; i < v.length; i++) v[i] /= n; return v; }
-
-  /** Describes a back-pattern image as a base64 vector, or resolves to '' when the model is unavailable. */
-  function embed(patternDataUrl) {
+  /**
+   * Points of interest in a back-pattern image, with a short binary description of the skin around each.
+   * Resolves to { n, pts: Float32Array [x0, y0, ...], des: Uint8Array n*32 }, or null when OpenCV is unavailable.
+   */
+  function describe(patternDataUrl) {
     return load().then(function (ok) {
-      if (!ok) return '';
-      return extractor(patternDataUrl).then(function (t) {
-        var dims = t.dims, data = t.data, out;
-        if (dims.length === 3) {                      // [1, tokens, width]: class token plus the mean of the patch tokens
-          var tokens = dims[1], width = dims[2], j, k;
-          out = new Float32Array(width * 2);
-          for (k = 0; k < width; k++) out[k] = data[k];
-          for (j = 1; j < tokens; j++) for (k = 0; k < width; k++) out[width + k] += data[j * width + k] / (tokens - 1);
-          unit(out.subarray(0, width)); unit(out.subarray(width));
-        } else { out = new Float32Array(data); }
-        return toBase64(unit(out));
+      if (!ok) return null;
+      return loadImage(patternDataUrl).then(function (img) {
+        var c = canvasOf(MATCH_SIDE, MATCH_SIDE); c.getContext('2d').drawImage(img, 0, 0, MATCH_SIDE, MATCH_SIDE);
+        var src = cv.imread(c), gray = new cv.Mat(), eq = new cv.Mat(), clahe = new cv.CLAHE(2.0, new cv.Size(8, 8));
+        var orb = new cv.ORB(MATCH_POINTS), kp = new cv.KeyPointVector(), des = new cv.Mat(), none = new cv.Mat(), out;
+        try {
+          cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY); clahe.apply(gray, eq);   // even out lighting before looking for points
+          orb.detectAndCompute(eq, none, kp, des);
+          var n = kp.size(), pts = new Float32Array(n * 2), i, p;
+          for (i = 0; i < n; i++) { p = kp.get(i).pt; pts[2 * i] = p.x; pts[2 * i + 1] = p.y; }
+          out = { n: n, pts: pts, des: n ? new Uint8Array(des.data) : new Uint8Array(0) };   // copied out, so nothing in OpenCV's memory is kept
+        } finally { src.delete(); gray.delete(); eq.delete(); clahe.delete(); orb.delete(); kp.delete(); des.delete(); none.delete(); }
+        return out;
       });
-    }).catch(function (e) { console.warn('Embedding failed', e); return ''; });
+    }).catch(function (e) { console.warn('Could not describe the pattern', e); return null; });
   }
 
-  function similarity(a, b) {
-    var x = typeof a === 'string' ? fromBase64(a) : a, y = typeof b === 'string' ? fromBase64(b) : b, s = 0, i;
-    if (!x || !y || x.length !== y.length) return null;
-    for (i = 0; i < x.length; i++) s += x[i] * y[i];
-    return s;
+  /**
+   * How many points of pattern a line up with points of pattern b under one consistent placement
+   * (shift, turn, modest stretch). Different frogs give a handful at most; the same frog gives tens to hundreds.
+   */
+  function count(a, b) {
+    if (!a || !b || a.n < 4 || b.n < 4 || status !== 'ready') return 0;
+    var da = cv.matFromArray(a.n, 32, cv.CV_8U, a.des), db = cv.matFromArray(b.n, 32, cv.CV_8U, b.des);
+    var bf = new cv.BFMatcher(cv.NORM_HAMMING, false), mm = new cv.DMatchVectorVector(), best = {}, good = [], i, pr, m, m2, result = 0;
+    var from = null, to = null, inl = null, M = null;
+    try {
+      bf.knnMatch(da, db, mm, 2);
+      for (i = 0; i < mm.size(); i++) {
+        pr = mm.get(i); if (pr.size() < 2) continue;
+        m = pr.get(0); m2 = pr.get(1);
+        // keep a pairing only when it is clearly better than the runner-up, and let each point of b be used once
+        if (m.distance < RATIO * m2.distance && (!best[m.trainIdx] || m.distance < best[m.trainIdx].d)) best[m.trainIdx] = { q: m.queryIdx, t: m.trainIdx, d: m.distance };
+      }
+      Object.keys(best).forEach(function (k) { good.push(best[k]); });
+      if (good.length < 4) return 0;
+      from = new cv.Mat(good.length, 1, cv.CV_32FC2); to = new cv.Mat(good.length, 1, cv.CV_32FC2); inl = new cv.Mat();
+      for (i = 0; i < good.length; i++) {
+        from.data32F[2 * i] = a.pts[2 * good[i].q]; from.data32F[2 * i + 1] = a.pts[2 * good[i].q + 1];
+        to.data32F[2 * i] = b.pts[2 * good[i].t]; to.data32F[2 * i + 1] = b.pts[2 * good[i].t + 1];
+      }
+      M = cv.estimateAffine2D(from, to, inl, cv.RANSAC, MATCH_SIDE * 0.012, 5000, 0.999, 10);
+      if (M && M.rows === 2) {
+        var d = M.data64F, sx = Math.hypot(d[0], d[3]), sy = Math.hypot(d[1], d[4]), det = d[0] * d[4] - d[1] * d[3];
+        // reject placements no real pair of photos could need: collapsing to a dot, heavy stretch, or a mirror image
+        if (sx >= 0.4 && sx <= 2.5 && sy >= 0.4 && sy <= 2.5 && sx / sy >= 0.6 && sx / sy <= 1.67 && det > 0) result = cv.countNonZero(inl);
+      }
+    } catch (e) { console.warn('Matching failed', e); result = 0; }
+    finally { da.delete(); db.delete(); bf.delete(); mm.delete(); if (from) from.delete(); if (to) to.delete(); if (inl) inl.delete(); if (M) M.delete(); }
+    return result;
   }
 
-  return { load: load, process: process, scaled: scaled, loadImage: loadImage, readFile: readFile, cropAt: cropAt, rotate: rotate, embed: embed, similarity: similarity, findBack: findBack,
+  return { load: load, process: process, scaled: scaled, loadImage: loadImage, readFile: readFile, cropAt: cropAt, rotate: rotate, describe: describe, count: count, findBack: findBack,
     status: function () { return status; }, onStatus: function (f) { onStatus = f; } };
 })();
 </script>
@@ -412,9 +451,9 @@ var Matcher = (function () {
 /* XenoLog - page logic. Talks to Code.gs through google.script.run. */
 (function () {
   var DAY = 86400000;
-  var CLEAR_LEAD = 0.05;   // "Best match" is shown only when the top similarity leads the next by this much
+  var MATCH_MIN = 10;      // matching points needed before a frog is called a match; different frogs gave 5 or fewer in tests
   var S = { data: null, thumbs: {}, basket: [], tab: 'priming', view: { name: 'tanks' }, shot: null, warn: null, confirm: null,
-    big: false, error: '', tankPhotos: {}, detail: null, full: {}, addPhoto: null, busy: 0 };
+    big: false, error: '', tankPhotos: {}, feat: {}, detail: null, full: {}, addPhoto: null, busy: 0 };
 
   /* ---------- server ---------- */
   function call(name, args, quiet) {
@@ -482,43 +521,55 @@ var Matcher = (function () {
       S.tankPhotos[t] = r;
       ids.forEach(function (id) { var l = r[id] || []; if (l.length) l[l.length - 1].last = true; });
       if (S.view.name === 'tank' || S.view.name === 'compare') render();
+      if (S.shot && S.shot.tank === t) rank().then(function () { if (S.view.name === 'tank' || S.view.name === 'compare') render(); });
       return derive([].concat.apply([], ids.map(function (id) { return (r[id] || []).map(function (p) { p.frog = id; return p; }); })));
     }).catch(function (e) { console.warn(e); });
   }
-  // Photos registered without a crop (imported files) or without a vector get them here, once.
+  // Photos registered without a crop (imported files) get one here, once.
   var deriving = Promise.resolve();
   function derive(list) {
     deriving = deriving.then(async function () {
       for (var i = 0; i < list.length; i++) {
-        var p = list[i], d = null;
+        var p = list[i];
+        if (p.pattern) continue;
         try {
-          if (!p.pattern) {
-            var r = await Matcher.process(await call('getFullPhoto', [p.photoId], true));
-            d = { photoId: p.photoId, thumb: r.thumb, pattern: r.pattern, crop: r.crop, emb: await Matcher.embed(r.pattern) };
-          } else if (!p.emb && !p.hasEmb && Matcher.status() !== 'unavailable') {
-            var emb = await Matcher.embed(p.pattern);
-            if (emb) d = { photoId: p.photoId, thumb: p.thumb, pattern: p.pattern, crop: p.crop, emb: emb };
-          }
-          if (!d) continue;
-          p.thumb = d.thumb; p.pattern = d.pattern; p.crop = d.crop; p.emb = d.emb; p.hasEmb = !!d.emb;
-          if (p.frog && p.last) S.thumbs[p.frog] = d.thumb;
-          await call('savePhotoDerived', [[d]], true);
-          rank();
+          var r = await Matcher.process(await call('getFullPhoto', [p.photoId], true));
+          p.thumb = r.thumb; p.pattern = r.pattern; p.crop = r.crop;
+          if (p.frog && p.last) S.thumbs[p.frog] = r.thumb;
+          await call('savePhotoDerived', [[{ photoId: p.photoId, thumb: r.thumb, pattern: r.pattern, crop: r.crop, emb: '' }]], true);
+          await rank();
           if (['tanks', 'tank', 'compare', 'frog', 'frogs', 'inuse'].indexOf(S.view.name) >= 0) render();
         } catch (e) { console.warn('Could not prepare photo ' + p.photoId, e); }
       }
     });
     return deriving;
   }
-  function rank() {
+  // Pattern points of a stored photo, worked out once per session from its back image.
+  function featuresOf(p) {
+    var key = p.photoId + '|' + p.pattern.length;      // a re-crop changes the image, and with it the key
+    if (!S.feat[key]) S.feat[key] = Matcher.describe(p.pattern);
+    return S.feat[key];
+  }
+  // Counts matching points between the new photo and every earlier photo of each frog still in the tank.
+  async function rank() {
     var s = S.shot;
-    if (!s || !s.emb) return;
-    s.ranks = present(s.tank).map(function (f) {
-      var best = null;
-      refs(s.tank, f.id).forEach(function (p) { var v = p.emb ? Matcher.similarity(s.emb, p.emb) : null; if (v != null && (best == null || v > best)) best = v; });
-      return { id: f.id, score: best };
-    }).sort(function (a, b) { return (b.score == null ? -2 : b.score) - (a.score == null ? -2 : a.score); });
-    if (s.ranks.every(function (r) { return r.score == null; })) s.ranks = null;
+    if (!s || !s.feat) return;
+    var frogs = present(s.tank), out = [];
+    for (var i = 0; i < frogs.length; i++) {
+      var list = refs(s.tank, frogs[i].id).filter(function (p) { return p.pattern; }), best = null;
+      for (var j = 0; j < list.length; j++) {
+        var f = await featuresOf(list[j]);
+        if (!f) continue;
+        var n = Matcher.count(s.feat, f);
+        if (best == null || n > best) best = n;
+        await new Promise(function (r) { setTimeout(r, 0); });      // let the page breathe between comparisons
+      }
+      out.push({ id: frogs[i].id, score: best });
+    }
+    if (S.shot !== s) return;
+    out.sort(function (a, b) { return (b.score == null ? -1 : b.score) - (a.score == null ? -1 : a.score); });
+    s.ranks = out.every(function (r) { return r.score == null; }) ? null : out;
+    s.ranked = true;
   }
   /* Crop screen: the photo with a square the person drags over the back. done() gets { full, pattern, thumb, crop }. */
   function cropEdit(r, done) {
@@ -575,21 +626,23 @@ var Matcher = (function () {
   }
   function takeShot(file, t) {
     shoot(file, async function (p) {
-      var shot = S.shot = { tank: t, full: p.full, pattern: p.pattern, thumb: p.thumb, crop: p.crop, emb: '', ranks: null };
+      var shot = S.shot = { tank: t, full: p.full, pattern: p.pattern, thumb: p.thumb, crop: p.crop, feat: null, ranks: null, ranked: false };
       S.warn = null; render();
-      var emb = await Matcher.embed(shot.pattern);
+      shot.feat = await Matcher.describe(shot.pattern);
       if (S.shot !== shot) return;
-      shot.emb = emb; rank(); render();
+      await rank();
+      if (S.shot === shot) render();
     });
   }
   function matchNote(t) {
     var st = Matcher.status(), s = S.shot;
-    if (st === 'loading') return 'Auto-match: loading the model. This takes a while the first time.';
-    if (st === 'unavailable') return 'Auto-match is unavailable on this device. Compare the photos by eye.';
-    if (s && s.tank === t && s.emb && !s.ranks) return 'Auto-match: no earlier photos of these frogs to compare with yet.';
-    if (s && s.tank === t && !s.emb) return 'Auto-match: comparing...';
-    if (s && s.tank === t && s.ranks) return 'Auto-match is experimental and has not been validated on this colony. Confirm by eye.';
-    return '';
+    if (st === 'loading') return 'Pattern check: loading. This takes a moment the first time.';
+    if (st === 'unavailable') return 'The pattern check is unavailable on this device. Compare the photos by eye.';
+    if (!s || s.tank !== t) return '';
+    if (!s.ranked) return 'Pattern check: comparing...';
+    if (!s.ranks) return 'Pattern check: these frogs have no earlier photos to compare with yet.';
+    if (s.ranks[0].score >= MATCH_MIN) return 'The pattern check counts points of the back pattern that line up with an earlier photo. It is a suggestion; confirm by eye.';
+    return 'No match found: no earlier photo lines up with this one. A blurred photo, a reflection on the back, or a crop that misses the back can cause this. Compare by eye, or retake the photo.';
   }
 
   /* ---------- screens ---------- */
@@ -625,14 +678,14 @@ var Matcher = (function () {
     var note = matchNote(t);
     if (note) h += '<p class="note">' + note + '</p>';
     var order = ranked(t), scored = order.length && order[0].score != null;
-    var clear = scored && (order.length < 2 || order[1].score == null || order[0].score - order[1].score >= CLEAR_LEAD);
-    if (scored && !clear) h += '<p class="note">The similarities are close, so the first frog below is only the closest, not a confident match. Compare the photos by eye.</p>';
-    h += '<h2>' + (scored ? 'Closest matches' : 'Frogs in this tank') + '</h2><div class="stack">';
+    var hits = order.filter(function (o) { return o.score != null && o.score >= MATCH_MIN; }).length;
+    if (hits > 1) h += '<div class="alert rest">More than one frog matches. One of the earlier photos may show the wrong frog. Compare carefully.</div>';
+    h += '<h2>' + (scored ? 'Pattern check' : 'Frogs in this tank') + '</h2><div class="stack">';
     if (!order.length) h += '<p class="note">No frog can be taken from this tank right now.</p>';
     order.forEach(function (o, n) {
       var f = o.f, st = status(f), r = refs(t, f.id), latest = r.length ? r[r.length - 1] : null;
-      h += '<div class="cand" id="cand-' + f.id + '"><div class="line">' + ph((latest && latest.pattern) || S.thumbs[f.id], 96, f.id) + '<div class="grow"><div class="ttl"><span class="id">#' + f.id + '</span> ' + (scored && n === 0 ? '<span class="pill ' + (clear ? 'use">Best match' : 'off">Closest') + '</span>' : '') + '</div><div>' + pill(st) + '</div><div class="sub">Last priming ' + (f.lastPriming || 'never') + ' · ' + plural(f.photos, 'photo') + '</div>' +
-        (o.score != null ? '<div class="sim">Similarity ' + o.score.toFixed(2) + '</div><div class="bar"><i style="width:' + Math.round(Math.max(0, o.score) * 100) + '%"></i></div>' : '') + '</div></div>';
+      h += '<div class="cand" id="cand-' + f.id + '"><div class="line">' + ph((latest && latest.pattern) || S.thumbs[f.id], 96, f.id) + '<div class="grow"><div class="ttl"><span class="id">#' + f.id + '</span> ' + (o.score != null && o.score >= MATCH_MIN ? '<span class="pill ok">Match</span>' : '') + '</div><div>' + pill(st) + '</div><div class="sub">Last priming ' + (f.lastPriming || 'never') + ' · ' + plural(f.photos, 'photo') + '</div>' +
+        (o.score != null ? '<div class="sim">' + plural(o.score, 'matching point') + '</div><div class="bar"><i style="width:' + Math.min(100, Math.round(o.score / (MATCH_MIN * 4) * 100)) + '%"></i></div>' : (scored ? '<div class="sim">no earlier photo</div>' : '')) + '</div></div>';
       if (S.warn === f.id) h += '<div class="alert danger">#' + f.id + ' is resting until ' + st.until + '. Put it back and take another frog.</div>';
       h += '<div class="btnrow"><button class="btn ghost" data-act="compare" data-id="' + f.id + '" id="btn-cmp-' + f.id + '">Compare photos</button><button class="btn" data-act="pick" data-id="' + f.id + '" id="btn-pick-' + f.id + '">This is #' + f.id + '</button></div></div>';
     });
@@ -645,7 +698,7 @@ var Matcher = (function () {
     var t = v.tank, id = v.id, f = frog(id), st = status(f), has = S.shot && S.shot.tank === t, order = ranked(t), list = refs(t, id);
     var idx = Math.min(v.idx, list.length - 1), p = list[idx], h = head('Compare photos', true);
     h += '<div class="switch" role="group" aria-label="Candidate">' + order.map(function (o) {
-      return '<button data-act="compare" data-id="' + o.f.id + '" id="sw-' + o.f.id + '"' + (o.f.id === id ? ' aria-current="true"' : '') + '><span class="id">#' + o.f.id + '</span>' + (o.score != null ? ' ' + o.score.toFixed(2) : '') + '</button>';
+      return '<button data-act="compare" data-id="' + o.f.id + '" id="sw-' + o.f.id + '"' + (o.f.id === id ? ' aria-current="true"' : '') + '><span class="id">#' + o.f.id + '</span>' + (o.score != null ? ' ' + o.score : '') + '</button>';
     }).join('') + '</div>';
     var left = has ? (v.whole ? S.shot.full : S.shot.pattern) : '', right = p ? (v.whole ? (S.full[p.photoId] || p.pattern) : p.pattern) : '';
     h += '<div class="cmp' + (S.big ? ' big' : '') + '"><figure>' + bigPh(left, 'New photo', 'No new photo yet. Go back and photograph the frog.') + '<figcaption><strong>New photo</strong>' + (has ? ' · today' : '') + '</figcaption></figure>' +
@@ -819,12 +872,10 @@ var Matcher = (function () {
       busy(-1);
       cropEdit(r, function (q) {
         busy(1);
-        Matcher.embed(q.pattern).then(function (emb) {
-          return call('savePhotoDerived', [[{ photoId: p.photoId, thumb: q.thumb, pattern: q.pattern, emb: emb, crop: 'manual' }]], true).then(function () {
-            busy(-1); p.pattern = q.pattern; p.thumb = q.thumb; p.crop = 'manual'; p.hasEmb = !!emb;
-            if (p.last) S.thumbs[id] = q.thumb;
-            delete S.tankPhotos[frog(id).tank]; render(); toast('Crop saved');
-          });
+        call('savePhotoDerived', [[{ photoId: p.photoId, thumb: q.thumb, pattern: q.pattern, emb: '', crop: 'manual' }]], true).then(function () {
+          busy(-1); p.pattern = q.pattern; p.thumb = q.thumb; p.crop = 'manual';
+          if (p.last) S.thumbs[id] = q.thumb;
+          delete S.tankPhotos[frog(id).tank]; render(); toast('Crop saved');
         }).catch(function (e) { busy(-1); fail(e); });
       });
     }).catch(function (e) { busy(-1); fail(e); });
@@ -835,8 +886,9 @@ var Matcher = (function () {
     if (status(f).k !== 'ok') return;
     var item = { id: id, tank: t, photo: null, match: null };
     if (s && s.tank === t) {
-      item.photo = { full: s.full, pattern: s.pattern, thumb: s.thumb, emb: s.emb, crop: s.crop };
-      if (s.ranks && s.ranks[0].score != null) { item.match = { tank: t, best: s.ranks[0].id, scores: {} }; s.ranks.forEach(function (r) { if (r.score != null) item.match.scores[r.id] = Math.round(r.score * 1000) / 1000; }); }
+      item.photo = { full: s.full, pattern: s.pattern, thumb: s.thumb, emb: '', crop: s.crop };
+      // Logged for later review: what the pattern check suggested (nothing, when no frog reached the threshold) and every count.
+      if (s.ranks) { item.match = { tank: t, best: s.ranks[0].score >= MATCH_MIN ? s.ranks[0].id : '', scores: {} }; s.ranks.forEach(function (r) { if (r.score != null) item.match.scores[r.id] = r.score; }); }
     }
     S.basket.push(item); S.shot = null; go({ name: 'tanks' }); toast('#' + id + ' added to today\'s priming');
   }
@@ -925,12 +977,12 @@ var Matcher = (function () {
     if (!file || !ctx || (el.id !== 'file-cam' && el.id !== 'file-lib')) return;
     S.fileCtx = null;
     if (ctx.kind === 'shot') takeShot(file, ctx.id);
-    else if (ctx.kind === 'newFrog') shoot(file, function (p) { S.addPhoto = p; keepForm(render); Matcher.embed(p.pattern).then(function (emb) { p.emb = emb; }); });
+    else if (ctx.kind === 'newFrog') shoot(file, function (p) { S.addPhoto = p; keepForm(render); });
     else if (ctx.kind === 'addPhoto') {
       var id = ctx.id;
       shoot(file, function (p) {
         busy(1);
-        Matcher.embed(p.pattern).then(function (emb) { return call('addPhoto', [id, { full: p.full, pattern: p.pattern, thumb: p.thumb, emb: emb, crop: p.crop }], true); })
+        call('addPhoto', [id, { full: p.full, pattern: p.pattern, thumb: p.thumb, emb: '', crop: p.crop }], true)
           .then(function (d) { busy(-1); S.thumbs[id] = p.thumb; delete S.tankPhotos[frog(id).tank]; frog(id).photos++; setDetail(d); render(); toast('Photo added'); })
           .catch(function (x) { busy(-1); fail(x); });
       });
@@ -965,7 +1017,7 @@ var Matcher = (function () {
     } else if (form.id === 'add-form') {
       var p = S.addPhoto;
       call('addFrog', [{ arrival: document.getElementById('add-date').value, source: document.getElementById('add-source').value, notes: document.getElementById('add-notes').value, tank: document.getElementById('add-tank').value,
-        photo: p ? { full: p.full, pattern: p.pattern, thumb: p.thumb, emb: p.emb || '', crop: p.crop } : null }]).then(function (st) {
+        photo: p ? { full: p.full, pattern: p.pattern, thumb: p.thumb, emb: '', crop: p.crop } : null }]).then(function (st) {
         if (p) S.thumbs[st.newId] = p.thumb;
         S.addPhoto = null; S.tankPhotos = {}; applyState(st); toast('#' + st.newId + ' added'); openFrog(st.newId);
       }).catch(fail);

@@ -1,21 +1,31 @@
-/* Photo handling in the browser: resize, find the frog's back, and describe the pattern as a
-   vector so two photos can be compared. Everything here fails soft: if the back cannot be found
-   the centre of the photo is used, and if the model cannot load the app works without ranking. */
+/* Photo handling in the browser: resize, find the frog's back, and compare two back patterns by
+   counting points that line up. Everything here fails soft: if the back cannot be found the centre
+   of the photo is used, and if OpenCV cannot load the app works without a suggestion. */
 var Matcher = (function () {
-  var MODEL = 'Xenova/dinov2-small';
-  var LIB = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.2';
+  var CV_URL = 'https://cdn.jsdelivr.net/npm/@techstark/opencv-js@4.12.0-release.1/dist/opencv.js';
   var FULL = 1280, PATTERN = 256, THUMB = 128, WORK = 200;
-  var extractor = null, loading = null, status = 'idle', onStatus = function () {};
+  var MATCH_SIDE = 384, MATCH_POINTS = 800, RATIO = 0.8;   // back image is enlarged to this size; ORB keeps this many points
+  var loading = null, status = 'idle', onStatus = function () {};
 
   function setStatus(s) { status = s; try { onStatus(s); } catch (e) {} }
 
+  /** Loads OpenCV once. Resolves to true when matching can be used. */
   function load() {
     if (loading) return loading;
     setStatus('loading');
-    loading = import(LIB).then(function (lib) {
-      return lib.pipeline('image-feature-extraction', MODEL, { dtype: 'q8' });
-    }).then(function (p) { extractor = p; setStatus('ready'); return true; })
-      .catch(function (e) { console.warn('Auto-match model did not load', e); setStatus('unavailable'); return false; });
+    loading = new Promise(function (ok) {
+      var s = document.createElement('script'), timer = setTimeout(function () { ok(false); }, 90000);
+      s.src = CV_URL; s.async = true;
+      s.onerror = function () { clearTimeout(timer); ok(false); };
+      s.onload = function () {
+        var c = window.cv;
+        // The OpenCV module object has its own .then. Awaiting it, or resolving a promise with it, never finishes
+        // and freezes the page, so it is only ever used through the global and .then is removed.
+        function done() { clearTimeout(timer); try { delete c.then; } catch (e) {} ok(typeof c.ORB === 'function' && typeof c.BFMatcher === 'function'); }
+        if (!c) { clearTimeout(timer); ok(false); } else if (c.Mat) done(); else c.onRuntimeInitialized = done;
+      };
+      document.head.appendChild(s);
+    }).then(function (good) { setStatus(good ? 'ready' : 'unavailable'); return good; });
     return loading;
   }
 
@@ -218,35 +228,64 @@ var Matcher = (function () {
     });
   }
 
-  function toBase64(f32) { var b = new Uint8Array(f32.buffer), s = '', i; for (i = 0; i < b.length; i++) s += String.fromCharCode(b[i]); return btoa(s); }
-  function fromBase64(s) { if (!s) return null; try { var bin = atob(s), b = new Uint8Array(bin.length), i; for (i = 0; i < bin.length; i++) b[i] = bin.charCodeAt(i); return new Float32Array(b.buffer); } catch (e) { return null; } }
-  function unit(v) { var n = 0, i; for (i = 0; i < v.length; i++) n += v[i] * v[i]; n = Math.sqrt(n) || 1; for (i = 0; i < v.length; i++) v[i] /= n; return v; }
-
-  /** Describes a back-pattern image as a base64 vector, or resolves to '' when the model is unavailable. */
-  function embed(patternDataUrl) {
+  /**
+   * Points of interest in a back-pattern image, with a short binary description of the skin around each.
+   * Resolves to { n, pts: Float32Array [x0, y0, ...], des: Uint8Array n*32 }, or null when OpenCV is unavailable.
+   */
+  function describe(patternDataUrl) {
     return load().then(function (ok) {
-      if (!ok) return '';
-      return extractor(patternDataUrl).then(function (t) {
-        var dims = t.dims, data = t.data, out;
-        if (dims.length === 3) {                      // [1, tokens, width]: class token plus the mean of the patch tokens
-          var tokens = dims[1], width = dims[2], j, k;
-          out = new Float32Array(width * 2);
-          for (k = 0; k < width; k++) out[k] = data[k];
-          for (j = 1; j < tokens; j++) for (k = 0; k < width; k++) out[width + k] += data[j * width + k] / (tokens - 1);
-          unit(out.subarray(0, width)); unit(out.subarray(width));
-        } else { out = new Float32Array(data); }
-        return toBase64(unit(out));
+      if (!ok) return null;
+      return loadImage(patternDataUrl).then(function (img) {
+        var c = canvasOf(MATCH_SIDE, MATCH_SIDE); c.getContext('2d').drawImage(img, 0, 0, MATCH_SIDE, MATCH_SIDE);
+        var src = cv.imread(c), gray = new cv.Mat(), eq = new cv.Mat(), clahe = new cv.CLAHE(2.0, new cv.Size(8, 8));
+        var orb = new cv.ORB(MATCH_POINTS), kp = new cv.KeyPointVector(), des = new cv.Mat(), none = new cv.Mat(), out;
+        try {
+          cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY); clahe.apply(gray, eq);   // even out lighting before looking for points
+          orb.detectAndCompute(eq, none, kp, des);
+          var n = kp.size(), pts = new Float32Array(n * 2), i, p;
+          for (i = 0; i < n; i++) { p = kp.get(i).pt; pts[2 * i] = p.x; pts[2 * i + 1] = p.y; }
+          out = { n: n, pts: pts, des: n ? new Uint8Array(des.data) : new Uint8Array(0) };   // copied out, so nothing in OpenCV's memory is kept
+        } finally { src.delete(); gray.delete(); eq.delete(); clahe.delete(); orb.delete(); kp.delete(); des.delete(); none.delete(); }
+        return out;
       });
-    }).catch(function (e) { console.warn('Embedding failed', e); return ''; });
+    }).catch(function (e) { console.warn('Could not describe the pattern', e); return null; });
   }
 
-  function similarity(a, b) {
-    var x = typeof a === 'string' ? fromBase64(a) : a, y = typeof b === 'string' ? fromBase64(b) : b, s = 0, i;
-    if (!x || !y || x.length !== y.length) return null;
-    for (i = 0; i < x.length; i++) s += x[i] * y[i];
-    return s;
+  /**
+   * How many points of pattern a line up with points of pattern b under one consistent placement
+   * (shift, turn, modest stretch). Different frogs give a handful at most; the same frog gives tens to hundreds.
+   */
+  function count(a, b) {
+    if (!a || !b || a.n < 4 || b.n < 4 || status !== 'ready') return 0;
+    var da = cv.matFromArray(a.n, 32, cv.CV_8U, a.des), db = cv.matFromArray(b.n, 32, cv.CV_8U, b.des);
+    var bf = new cv.BFMatcher(cv.NORM_HAMMING, false), mm = new cv.DMatchVectorVector(), best = {}, good = [], i, pr, m, m2, result = 0;
+    var from = null, to = null, inl = null, M = null;
+    try {
+      bf.knnMatch(da, db, mm, 2);
+      for (i = 0; i < mm.size(); i++) {
+        pr = mm.get(i); if (pr.size() < 2) continue;
+        m = pr.get(0); m2 = pr.get(1);
+        // keep a pairing only when it is clearly better than the runner-up, and let each point of b be used once
+        if (m.distance < RATIO * m2.distance && (!best[m.trainIdx] || m.distance < best[m.trainIdx].d)) best[m.trainIdx] = { q: m.queryIdx, t: m.trainIdx, d: m.distance };
+      }
+      Object.keys(best).forEach(function (k) { good.push(best[k]); });
+      if (good.length < 4) return 0;
+      from = new cv.Mat(good.length, 1, cv.CV_32FC2); to = new cv.Mat(good.length, 1, cv.CV_32FC2); inl = new cv.Mat();
+      for (i = 0; i < good.length; i++) {
+        from.data32F[2 * i] = a.pts[2 * good[i].q]; from.data32F[2 * i + 1] = a.pts[2 * good[i].q + 1];
+        to.data32F[2 * i] = b.pts[2 * good[i].t]; to.data32F[2 * i + 1] = b.pts[2 * good[i].t + 1];
+      }
+      M = cv.estimateAffine2D(from, to, inl, cv.RANSAC, MATCH_SIDE * 0.012, 5000, 0.999, 10);
+      if (M && M.rows === 2) {
+        var d = M.data64F, sx = Math.hypot(d[0], d[3]), sy = Math.hypot(d[1], d[4]), det = d[0] * d[4] - d[1] * d[3];
+        // reject placements no real pair of photos could need: collapsing to a dot, heavy stretch, or a mirror image
+        if (sx >= 0.4 && sx <= 2.5 && sy >= 0.4 && sy <= 2.5 && sx / sy >= 0.6 && sx / sy <= 1.67 && det > 0) result = cv.countNonZero(inl);
+      }
+    } catch (e) { console.warn('Matching failed', e); result = 0; }
+    finally { da.delete(); db.delete(); bf.delete(); mm.delete(); if (from) from.delete(); if (to) to.delete(); if (inl) inl.delete(); if (M) M.delete(); }
+    return result;
   }
 
-  return { load: load, process: process, scaled: scaled, loadImage: loadImage, readFile: readFile, cropAt: cropAt, rotate: rotate, embed: embed, similarity: similarity, findBack: findBack,
+  return { load: load, process: process, scaled: scaled, loadImage: loadImage, readFile: readFile, cropAt: cropAt, rotate: rotate, describe: describe, count: count, findBack: findBack,
     status: function () { return status; }, onStatus: function (f) { onStatus = f; } };
 })();

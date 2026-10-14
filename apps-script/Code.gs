@@ -26,7 +26,7 @@ const REC_COLS = ['Record ID', 'Animal ID', 'Priming Date', 'Collection Date', '
   'Quantity (Laid Eggs)', 'Appearance (Laid Eggs)', 'After Ca activation (Laid Eggs)', 'Comments',
   'State', 'Origin', 'Original values', 'Created at', 'Updated at', 'Updated by'];
 const PHOTO_COLS = ['Photo ID', 'Animal ID', 'Date', 'Kind', 'Drive file ID', 'Thumb', 'Pattern', 'Embedding', 'Crop', 'Added by', 'Added at'];
-const MATCH_COLS = ['Time', 'User', 'Tank', 'Chosen ID', 'Best match ID', 'Agreed', 'Scores'];
+const MATCH_COLS = ['Time', 'User', 'Tank', 'Chosen ID', 'Suggested ID', 'Agreed', 'Matching points'];
 const ULAM_COLS = ['Animal ID', 'System #', 'Arrival Date', 'Source', 'Collection Date', '# Collected (Laid)', 'Appearance (Laid)',
   'After Ca2+ (Laid)', '# Collected (Squeezed)', 'Appearance (Squeezed)', 'After Ca2+ (Squeezed)', 'MMR H2O source', 'Notes',
   'Fertilized', '% viable pre-injection', '% viable post-injection'];
@@ -244,14 +244,14 @@ function photosOf_(index, frogId, limit, withEmb) {
   });
 }
 
-/** Newest photos of each listed frog, with embeddings, for the comparison screen. */
+/** Newest photos of each listed frog, for the comparison screen and the pattern check. */
 function getTankPhotos(ids) {
   const index = photoIndex_(), out = {};
   (ids || []).forEach(function (id) { out[id] = photosOf_(index, Number(id), PHOTOS_PER_FROG, true); });
   return out;
 }
 
-/** Thumbnail, back pattern and embedding that the page worked out for a photo that had none. */
+/** Thumbnail and back pattern that the page worked out for a photo that had none. (emb is unused now and stored empty.) */
 function savePhotoDerived(list) {
   return withLock_(function () {
     const index = photoIndex_(), sh = sheet_(SHEETS.PHOTOS);
@@ -321,7 +321,7 @@ function savePriming(payload) {
     items.forEach(function (it) {
       if (it.photo && it.photo.full) savePhoto_(it.id, it.photo, 'priming', user);
       if (it.match) {
-        sheet_(SHEETS.MATCH).appendRow([stamp, user, it.match.tank, it.id, it.match.best, it.match.best === it.id ? 'yes' : 'no',
+        sheet_(SHEETS.MATCH).appendRow([stamp, user, it.match.tank, it.id, it.match.best, it.match.best ? (Number(it.match.best) === Number(it.id) ? 'yes' : 'no') : 'no suggestion',
           JSON.stringify(it.match.scores || {})]);
       }
     });

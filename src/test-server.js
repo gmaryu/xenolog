@@ -43,6 +43,8 @@ st = savePriming({ items: [{ id: 10, photo, match: { tank: 1, best: 11, scores: 
 assert.equal(F(10).open.state, 'In use'); assert.equal(F(10).open.priming, '2026-10-13'); assert.equal(F(10).photos, 1); assert.equal(F(10).restUntil, '2027-01-13');
 assert.throws(() => savePriming({ items: [{ id: 10 }] }), /already in use/);
 assert.equal(FAKE.book.sheets['Match log'].data[1][5], 'no');
+savePriming({ items: [{ id: 22, photo: null, match: { tank: 3, best: '', scores: { 22: 3 } } }, { id: 23, photo: null, match: { tank: 3, best: 23, scores: { 23: 40 } } }] });
+assert.deepEqual(FAKE.book.sheets['Match log'].data.slice(2).map(r => r[5]), ['no suggestion', 'yes']); returnFrog(getState().frogs.find(f => f.id === 22).open.id); returnFrog(getState().frogs.find(f => f.id === 23).open.id);
 const tp = getTankPhotos([10, 11]); assert.equal(tp[10].length, 1); assert.equal(tp[10][0].emb, 'ZW1i'); assert.equal(tp[11].length, 0);
 assert.equal(getFullPhoto(tp[10][0].photoId), 'data:image/jpeg;base64,AAAA');
 savePhotoDerived([{ photoId: tp[10][0].photoId, thumb: 'T2', pattern: 'P2', emb: 'E2', crop: 'centre' }]);

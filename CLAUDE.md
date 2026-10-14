@@ -28,11 +28,12 @@ Run both after any change to `Code.gs` or `src/`. `dev.html` runs the whole app 
 - Dates are stored as `yyyy-MM-dd` text. Keep those columns plain text.
 - The page re-renders `#app` often. File inputs live outside `#app` on purpose; anything that must survive a re-render belongs outside it or in `S`.
 - Cells hold at most 50,000 characters; thumbnails and patterns are sized to fit.
+- The OpenCV.js module object has its own `.then`. Never `await` it or resolve a promise with it; the page hangs. `matcher.js` only uses the global `cv` after start-up.
 - `Code.gs` runs on Apps Script (V8). `src/` runs in phone browsers. Neither is Node.
 
 ## Not verified
 
-Nothing here has been run by an automated test against real Sheets or Drive. Automatic matching (DINOv2 embeddings, cosine similarity within one tank) is experimental: two of two correct on real different-day photos, which proves little. Automatic cropping misses on some photos and is only the starting position of the crop screen.
+Nothing here has been run by an automated test against real Sheets or Drive. The pattern check (ORB points on the 256 px back image enlarged to 384 px, ratio test, one-to-one, RANSAC affine with sanity limits; `MATCH_MIN` points to call a match) was checked on about 60 lab photos on a desktop browser: different frogs 5 or fewer, same frog 15 to 100+. Very few same-frog pairs exist yet, and phone speed is unmeasured. Automatic cropping misses on some photos and is only the starting position of the crop screen.
 
 ## Releasing to the lab
 
