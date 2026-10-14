@@ -8,13 +8,44 @@
  * the one-time import and never changes them.
  */
 
-/* ------------------------------------------------------------------ lab settings: adjust these to your colony */
-const APP_NAME = 'XenoLog';   // browser tab title and the name of the spreadsheet menu
-const FAVICON_URL = '';            // optional: public https link to a PNG shown in the browser tab
-const REST_MONTHS = 3;             // months a frog rests after a priming
-const TANK_SIZE = 3;               // frogs per housing tank
-const REMOVAL_REASONS = ['Died', 'Escaped', 'Euthanized', 'Other'];   // offered when a frog is removed from the colony
-const RECORD_TIMING = true;        // false stops the Timing sheet: how long each step of a priming took, per person (see README)
+/* ------------------------------------------------------------------ lab settings
+ * Each lab sets its own values in Settings.gs (const SETTINGS = { ... }), so pasting a newer Code.gs keeps them.
+ * A key left out there takes the value below; options, quality and legacyWater are merged key by key. */
+const DEFAULTS = {
+  appName: 'XenoLog',            // browser tab title and the name of the spreadsheet menu
+  faviconUrl: '',                // optional: public https link to a PNG shown in the browser tab
+  restMonths: 3,                 // months a frog rests after a priming
+  tankSize: 3,                   // frogs per housing tank
+  removalReasons: ['Died', 'Escaped', 'Euthanized', 'Other'],   // offered when a frog is removed from the colony
+  recordTiming: true,            // false stops the Timing sheet: how long each step of a priming took, per person (see README)
+  // Choices offered in the record form, least to most favourable.
+  options: {
+    water: ['MilliQ', 'RO'],
+    quantity: ['None', 'Few', 'Normal', 'Many'],
+    appearance: ['None', 'Bad', 'Not bad', 'Good', 'Great'],
+    ca: ['Turned to white', 'Looking good']
+  },
+  // Egg quality score and replacement candidates. appearance and quantity give each choice above a value; 0 means no usable eggs.
+  quality: {
+    squeezedWeight: 0.7,     // squeezed eggs count this much, laid eggs the rest
+    appearanceWeight: 0.7,   // within one egg type: appearance counts this much, quantity the rest
+    cycles: 3,               // how many of the most recent cycles are averaged
+    threshold: 45,           // candidate when the average of two or more cycles is below this (0-100)
+    firstThreshold: 30,      // candidate when the only cycle so far scored this or less
+    appearance: { 'Great': 4, 'Good': 3, 'Not bad': 2, 'Bad': 1, 'None': 0 },
+    quantity: { 'Many': 3, 'Normal': 2, 'Few': 1, 'None': 0 }
+  },
+  // Old water-source spellings in the legacy form, lower case, and the choice each is read as.
+  legacyWater: { 'milliq': 'MilliQ', 'milli-q': 'MilliQ', 'ro': 'RO', '-': '' }
+};
+// Read when needed, never at load time: Apps Script does not promise the order in which Settings.gs and Code.gs load.
+function setting_(key) {
+  const own = typeof SETTINGS === 'undefined' ? {} : SETTINGS, d = DEFAULTS[key];
+  if (!(key in own)) return d;
+  const v = own[key];
+  return d && typeof d === 'object' && !Array.isArray(d) && v && typeof v === 'object' ? Object.assign({}, d, v) : v;
+}
+
 const PHOTOS_PER_FROG = 5;      // newest photos sent to the page for comparison
 const CELL_LIMIT = 49000;       // Sheets refuses cells over 50,000 characters
 
@@ -37,46 +68,26 @@ const ULAM_COLS = ['Animal ID', 'System #', 'Arrival Date', 'Source', 'Collectio
   'Fertilized', '% viable pre-injection', '% viable post-injection'];
 const CHECK_COLS = ['Source sheet', 'Row', 'Animal ID', 'Issue', 'Detail'];
 
-// Choices offered in the record form, least to most favourable.
-const OPTIONS = {
-  water: ['Chemistry MilliQ', 'BSB RO'],
-  quantity: ['None', 'Few', 'Normal', 'Many'],
-  appearance: ['None', 'Bad', 'Not bad', 'Good', 'Great'],
-  ca: ['Turned to white', 'Looking good']
-};
-
-// Egg quality score and replacement candidates. Change the numbers here to tune the rule.
-const QUALITY = {
-  squeezedWeight: 0.7,     // squeezed eggs count this much, laid eggs the rest
-  appearanceWeight: 0.7,   // within one egg type: appearance counts this much, quantity the rest
-  cycles: 3,               // how many of the most recent cycles are averaged
-  threshold: 45,           // candidate when the average of two or more cycles is below this (0-100)
-  firstThreshold: 30,      // candidate when the only cycle so far scored this or less
-  appearance: { 'Great': 4, 'Good': 3, 'Not bad': 2, 'Bad': 1, 'None': 0 },
-  quantity: { 'Many': 3, 'Normal': 2, 'Few': 1, 'None': 0 }
-};
-
 // How old spellings are read during the import. The original text is kept in "Original values".
 // A value that is not listed here is imported unchanged and listed in "Import check".
 const LEGACY_MAP = {
   quantity: { 'many': 'Many', 'normal': 'Normal', 'few': 'Few', 'none': 'None', 'ok': 'Normal', '-': '' },
   appearance: { 'great': 'Great', 'good': 'Good', 'not bad': 'Not bad', 'bad': 'Bad', 'none': 'None', 'ok': 'Not bad', '-': '' },
-  ca: { 'looking good': 'Looking good', 'turned to white': 'Turned to white', 'good': 'Looking good', '-': '' },
-  water: { 'chemistry milliq': 'Chemistry MilliQ', 'chemistry': 'Chemistry MilliQ', 'bsb ro': 'BSB RO', 'bsb': 'BSB RO', '-': '' }
-};
+  ca: { 'looking good': 'Looking good', 'turned to white': 'Turned to white', 'good': 'Looking good', '-': '' }
+};   // water: legacyWater in the settings
 
 /* ------------------------------------------------------------------ entry points */
 
 function doGet() {
   const page = HtmlService.createHtmlOutputFromFile('Index')
-    .setTitle(APP_NAME)
+    .setTitle(setting_('appName'))
     .addMetaTag('viewport', 'width=device-width, initial-scale=1, viewport-fit=cover');
-  if (FAVICON_URL) page.setFaviconUrl(FAVICON_URL);
+  if (setting_('faviconUrl')) page.setFaviconUrl(setting_('faviconUrl'));
   return page;
 }
 
 function onOpen() {
-  SpreadsheetApp.getUi().createMenu(APP_NAME)
+  SpreadsheetApp.getUi().createMenu(setting_('appName'))
     .addItem('1. Set up sheets', 'setup')
     .addItem('2. Import legacy records', 'importLegacy')
     .addItem('Import photos from Drive folder', 'importPhotos')
@@ -103,7 +114,7 @@ function user_() {
 
 function sheet_(name) {
   const sh = ss_().getSheetByName(name);
-  if (!sh) throw new Error('Sheet "' + name + '" is missing. Open the spreadsheet and run ' + APP_NAME + ' > Set up sheets.');
+  if (!sh) throw new Error('Sheet "' + name + '" is missing. Open the spreadsheet and run ' + setting_('appName') + ' > Set up sheets.');
   return sh;
 }
 
@@ -141,12 +152,13 @@ function readRecords_() {
 
 // One egg type in one cycle, 0 to 1. "None" for either answer means no usable eggs. null when nothing was recorded.
 function typeScore_(appearance, quantity) {
-  const a = QUALITY.appearance[appearance], q = QUALITY.quantity[quantity];
+  const Q = setting_('quality'), top = function (m) { return Math.max.apply(null, Object.keys(m).map(function (k) { return m[k]; })); };
+  const a = Q.appearance[appearance], q = Q.quantity[quantity];
   if (a === undefined && q === undefined) return null;
   if (a === 0 || q === 0) return 0;
-  if (a === undefined) return q / 3;
-  if (q === undefined) return a / 4;
-  return QUALITY.appearanceWeight * a / 4 + (1 - QUALITY.appearanceWeight) * q / 3;
+  if (a === undefined) return q / top(Q.quantity);
+  if (q === undefined) return a / top(Q.appearance);
+  return Q.appearanceWeight * a / top(Q.appearance) + (1 - Q.appearanceWeight) * q / top(Q.quantity);
 }
 
 // One cycle, 0 to 100, or null when it cannot be scored (not collected, or old free-text values).
@@ -154,19 +166,19 @@ function cycleScore_(r) {
   if (!r.collection || r.state === 'Cancelled' || r.state === 'Not used') return null;
   const s = typeScore_(r.sqApp, r.sqQty), l = typeScore_(r.laidApp, r.laidQty);
   if (s === null && l === null) return null;
-  const v = s === null ? l : l === null ? s : QUALITY.squeezedWeight * s + (1 - QUALITY.squeezedWeight) * l;
+  const w = setting_('quality').squeezedWeight, v = s === null ? l : l === null ? s : w * s + (1 - w) * l;
   return Math.round(v * 100);
 }
 
 // scored: [{date, score}] for one frog. Returns the summary shown in the Frogs tab.
 function quality_(scored) {
   scored.sort(function (a, b) { return a.date < b.date ? 1 : -1; });
-  const recent = scored.slice(0, QUALITY.cycles).map(function (x) { return x.score; });
+  const Q = setting_('quality'), recent = scored.slice(0, Q.cycles).map(function (x) { return x.score; });
   if (!recent.length) return { score: null, recent: [], cycles: 0, candidate: false, reason: '' };
   const mean = Math.round(recent.reduce(function (t, x) { return t + x; }, 0) / recent.length);
   let reason = '';
-  if (scored.length === 1 && mean <= QUALITY.firstThreshold) reason = 'First cycle scored ' + mean;
-  else if (scored.length > 1 && mean < QUALITY.threshold) reason = 'Last ' + recent.length + ' cycles average ' + mean;
+  if (scored.length === 1 && mean <= Q.firstThreshold) reason = 'First cycle scored ' + mean;
+  else if (scored.length > 1 && mean < Q.threshold) reason = 'Last ' + recent.length + ' cycles average ' + mean;
   return { score: mean, recent: recent, cycles: scored.length, candidate: reason !== '', reason: reason };
 }
 
@@ -200,13 +212,15 @@ function buildState_(withThumbs) {
   photoIndex_().forEach(function (p) { count[p.frog] = (count[p.frog] || 0) + 1; newest[p.frog] = p.row; });
   const frogs = readFrogs_().map(function (f) {
     const o = { id: f.id, inColony: f.inColony, tank: f.tank, arrival: f.arrival, source: f.source, notes: f.notes, removedOn: f.removedOn, removalReason: f.removalReason,
-      lastPriming: last[f.id] || '', restUntil: last[f.id] ? addMonths_(last[f.id], REST_MONTHS) : '', open: open[f.id] || null,
+      lastPriming: last[f.id] || '', restUntil: last[f.id] ? addMonths_(last[f.id], setting_('restMonths')) : '', open: open[f.id] || null,
       photos: count[f.id] || 0, quality: quality_(scored[f.id] || []) };
     if (withThumbs && f.inColony && newest[f.id]) o.thumb = photoCells_(newest[f.id]).thumb;
     return o;
   });
-  return { user: user_(), today: today, recordTiming: RECORD_TIMING, restMonths: REST_MONTHS, tankSize: TANK_SIZE, appName: APP_NAME, options: OPTIONS, removalReasons: REMOVAL_REASONS, frogs: frogs,
-    qualityRule: { squeezed: Math.round(QUALITY.squeezedWeight * 100), cycles: QUALITY.cycles, threshold: QUALITY.threshold, firstThreshold: QUALITY.firstThreshold } };
+  const Q = setting_('quality');
+  return { user: user_(), today: today, recordTiming: setting_('recordTiming'), restMonths: setting_('restMonths'), tankSize: setting_('tankSize'), appName: setting_('appName'),
+    options: setting_('options'), removalReasons: setting_('removalReasons'), frogs: frogs,
+    qualityRule: { squeezed: Math.round(Q.squeezedWeight * 100), cycles: Q.cycles, threshold: Q.threshold, firstThreshold: Q.firstThreshold } };
 }
 
 /* ------------------------------------------------------------------ photos */
@@ -215,7 +229,7 @@ function folder_() {
   const props = PropertiesService.getScriptProperties();
   const id = props.getProperty('PHOTO_FOLDER_ID');
   if (id) { try { return DriveApp.getFolderById(id); } catch (e) { /* folder was deleted: make a new one */ } }
-  const folder = DriveApp.createFolder(APP_NAME + ' photos');
+  const folder = DriveApp.createFolder(setting_('appName') + ' photos');
   props.setProperty('PHOTO_FOLDER_ID', folder.getId());
   return folder;
 }
@@ -351,7 +365,7 @@ function savePriming(payload) {
 // Measurements for the study of the app in use. A sheet made before this version is added here, so a priming never fails for want of it.
 function saveTiming_(items, byId, client, stamp, user) {
   const timed = items.filter(function (it) { return it.timing; });
-  if (!RECORD_TIMING || !timed.length) return;
+  if (!setting_('recordTiming') || !timed.length) return;
   const sh = ss_().getSheetByName(SHEETS.TIMING) || ensureSheet_(SHEETS.TIMING, TIMING_COLS, [1, 2, 3, 6, 13, 14, 17, 19, 20]);
   const num = function (v) { return v === '' || v == null || isNaN(Number(v)) ? '' : Number(v); };
   const yes = function (v) { return v == null ? '' : (v ? 'yes' : 'no'); };
@@ -379,9 +393,10 @@ function saveRecord(recordId, f) {
     const rec = findRecord_(recordId);
     if (!isOpen_(rec)) throw new Error('This frog has already been returned. Edit the record from its history instead.');
     if (!/^\d{4}-\d{2}-\d{2}$/.test(s_(f.collection))) throw new Error('Enter the collection date.');
-    sheet_(SHEETS.RECORDS).getRange(rec.row, 4, 1, 11).setValues([[f.collection, user_(), pick_(f.water, OPTIONS.water),
-      pick_(f.sqQty, OPTIONS.quantity), pick_(f.sqApp, OPTIONS.appearance), pick_(f.sqCa, OPTIONS.ca),
-      pick_(f.laidQty, OPTIONS.quantity), pick_(f.laidApp, OPTIONS.appearance), pick_(f.laidCa, OPTIONS.ca),
+    const O = setting_('options');
+    sheet_(SHEETS.RECORDS).getRange(rec.row, 4, 1, 11).setValues([[f.collection, user_(), pick_(f.water, O.water),
+      pick_(f.sqQty, O.quantity), pick_(f.sqApp, O.appearance), pick_(f.sqCa, O.ca),
+      pick_(f.laidQty, O.quantity), pick_(f.laidApp, O.appearance), pick_(f.laidCa, O.ca),
       s_(f.comments), 'Recorded']]);
     touch_(rec.row);
     rebuildUlam_();
@@ -393,8 +408,9 @@ function saveRecord(recordId, f) {
 function updateRecord(recordId, f) {
   return withLock_(function () {
     const rec = findRecord_(recordId), sh = sheet_(SHEETS.RECORDS);
-    sh.getRange(rec.row, 9).setValue(pick_(f.sqCa, OPTIONS.ca));
-    sh.getRange(rec.row, 12, 1, 2).setValues([[pick_(f.laidCa, OPTIONS.ca), s_(f.comments)]]);
+    const ca = setting_('options').ca;
+    sh.getRange(rec.row, 9).setValue(pick_(f.sqCa, ca));
+    sh.getRange(rec.row, 12, 1, 2).setValues([[pick_(f.laidCa, ca), s_(f.comments)]]);
     touch_(rec.row);
     rebuildUlam_();
     return buildState_(false);
@@ -436,7 +452,7 @@ function addFrog(f) {
     const id = frogs.reduce(function (m, x) { return Math.max(m, x.id); }, 0) + 1;
     const tank = Number(f.tank);
     if (!(tank > 0)) throw new Error('Choose a tank.');
-    if (frogs.filter(function (x) { return x.inColony && x.tank === tank; }).length >= TANK_SIZE) throw new Error('Tank ' + tank + ' is full.');
+    if (frogs.filter(function (x) { return x.inColony && x.tank === tank; }).length >= setting_('tankSize')) throw new Error('Tank ' + tank + ' is full.');
     sheet_(SHEETS.FROGS).appendRow([id, 'In colony', tank, s_(f.arrival), s_(f.source), s_(f.notes), '', now_(), user_()]);
     if (f.photo && f.photo.full) savePhoto_(id, f.photo, 'registration', user_());
     const state = buildState_(false);
@@ -445,11 +461,11 @@ function addFrog(f) {
   });
 }
 
-/** reason: one of REMOVAL_REASONS. note: optional free text, added to the frog's Notes. */
+/** reason: one of the removalReasons setting. note: optional free text, added to the frog's Notes. */
 function removeFrog(frogId, reason, note) {
   return withLock_(function () {
     frogId = Number(frogId);
-    reason = pick_(reason, REMOVAL_REASONS);
+    reason = pick_(reason, setting_('removalReasons'));
     if (!reason) throw new Error('Choose why the frog is being removed.');
     const f = readFrogs_().filter(function (x) { return x.id === frogId; })[0];
     if (!f) throw new Error('Frog not found.');
@@ -462,12 +478,12 @@ function removeFrog(frogId, reason, note) {
   });
 }
 
-/** Tank exchange: frogs in the colony, in ID order, TANK_SIZE per tank starting at Tank 1. */
+/** Tank exchange: frogs in the colony, in ID order, tankSize (setting) per tank starting at Tank 1. */
 function applyExchange() {
   return withLock_(function () {
     const sh = sheet_(SHEETS.FROGS), stamp = now_(), user = user_();
     readFrogs_().filter(function (f) { return f.inColony; }).sort(function (a, b) { return a.id - b.id; }).forEach(function (f, i) {
-      const tank = Math.floor(i / TANK_SIZE) + 1;
+      const tank = Math.floor(i / setting_('tankSize')) + 1;
       if (tank !== f.tank) { sh.getRange(f.row, 3).setValue(tank); sh.getRange(f.row, 8, 1, 2).setValues([[stamp, user]]); }
     });
     rebuildUlam_();
@@ -519,7 +535,7 @@ function setup() {
   ensureSheet_(SHEETS.RECORDS, REC_COLS, [1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]);
   ensureSheet_(SHEETS.PHOTOS, PHOTO_COLS, [1, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
   ensureSheet_(SHEETS.MATCH, MATCH_COLS, [1, 2, 7]);
-  if (RECORD_TIMING) ensureSheet_(SHEETS.TIMING, TIMING_COLS, [1, 2, 3, 6, 13, 14, 17, 19, 20]);
+  if (setting_('recordTiming')) ensureSheet_(SHEETS.TIMING, TIMING_COLS, [1, 2, 3, 6, 13, 14, 17, 19, 20]);
   ensureSheet_(SHEETS.ULAM, ULAM_COLS, [3, 4, 5, 13]);
   ensureSheet_(SHEETS.CHECK, CHECK_COLS, [5]);
   if (frogs.getLastRow() === 1 && typeof ROSTER !== 'undefined') {
@@ -542,9 +558,9 @@ function legacyDate_(text) {
 function legacyValue_(kind, raw, note) {
   raw = s_(raw);
   if (raw === '') return '';
-  const key = raw.toLowerCase(), map = LEGACY_MAP[kind];
+  const key = raw.toLowerCase(), map = kind === 'water' ? setting_('legacyWater') : LEGACY_MAP[kind];
   if (!(key in map)) { note('Value not in the current choices, kept as written', kind + ': "' + raw + '"'); return raw; }
-  // Reinterpretations are listed for review; filling in "Chemistry" or dropping a "-" placeholder is not one.
+  // Reinterpretations are listed for review; completing a short water-source name or dropping a "-" placeholder is not one.
   if (kind !== 'water' && map[key] !== '' && map[key].toLowerCase() !== key) note('Old spelling read as a current choice', kind + ': "' + raw + '" -> "' + map[key] + '"');
   return map[key];
 }

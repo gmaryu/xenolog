@@ -6,7 +6,8 @@ This repository is public. **Never add lab data here**: real rosters, frog photo
 
 ## Layout
 
-- `apps-script/Code.gs` – server. Public functions are the page's API; names ending in `_` are private. Lab-adjustable values are in the settings block at the top (`APP_NAME`, `REST_MONTHS`, `TANK_SIZE`, `OPTIONS`, `QUALITY`).
+- `apps-script/Code.gs` – server. Public functions are the page's API; names ending in `_` are private. Lab-adjustable values have their defaults in `DEFAULTS` and are read through `setting_(key)`, never at load time (Apps Script does not promise the order in which files load).
+- `apps-script/Settings.gs` – example settings (`const SETTINGS`), every key at its default; the test checks they match. A lab's own copy overrides `DEFAULTS` key by key.
 - `apps-script/Roster.gs` – example roster only.
 - `apps-script/Index.html` – **generated**. Edit `src/` and rebuild.
 - `src/app.js` – page logic. `src/matcher.js` – photo crop and matching. `src/style.css`, `src/body.html`.
@@ -20,7 +21,7 @@ cd src && python3 build.py      # writes ../apps-script/Index.html and src/dev.h
 cd src && node test-server.js   # server logic against in-memory sheets
 ```
 
-Run both after any change to `Code.gs` or `src/`. `dev.html` runs the whole app in a browser with fake data; serve the repository root over http (`.claude/launch.json` has a `xenolog` entry) and open `/src/dev.html`. Real photos for crop or matching checks are in `../xenolog-lab/Frogs_Picture/` and must be served separately, never copied in.
+Run both after any change to `Code.gs`, `Settings.gs` or `src/`. `dev.html` runs the whole app in a browser with fake data; serve the repository root over http (`.claude/launch.json` has a `xenolog` entry) and open `/src/dev.html`. Real photos for crop or matching checks are in `../xenolog-lab/Frogs_Picture/` and must be served separately, never copied in.
 
 ## Things that are easy to get wrong
 
@@ -37,4 +38,4 @@ Nothing here has been run by an automated test against real Sheets or Drive. The
 
 ## Releasing to the lab
 
-The lab deployment uses this repository's `Code.gs` and `Index.html` with the private `Roster.gs`. After changes: rebuild, test, raise `APP_VERSION` in `Code.gs` (the Timing sheet records it so measurements can be tied to a release), then paste into the Apps Script project and update the **existing** deployment to a new version (a new deployment would change the URL).
+The lab deployment uses this repository's `Code.gs` and `Index.html` with the private `Settings.gs` and `Roster.gs` (`../xenolog-lab/make-deploy.sh` collects the four). After changes: rebuild, test, raise `APP_VERSION` in `Code.gs` (the Timing sheet records it so measurements can be tied to a release), then paste into the Apps Script project and update the **existing** deployment to a new version (a new deployment would change the URL).
