@@ -49,15 +49,16 @@ assert.deepEqual(FAKE.book.sheets['Match log'].data.slice(2).map(r => r[5]), ['n
 // timing: one row per frog that carries it, nothing for the rest
 const TS = FAKE.book.sheets['Timing'];
 assert.deepEqual(TS.data[0], TIMING_COLS); assert.equal(TS.data.length, 1);
-const tm = { opened: '2026-10-13 09:15:02.120', photo: 4.2, crop: 11.5, match: 13.1, picked: 20.4, saved: 95, photos: 2, found: true, moved: false, compares: 1, opens: 2, resting: '24', matchMs: 850, size: '4032x3024' };
+const tm = { opened: '2026-10-13 09:15:02.120', photo: 4.2, crop: 11.5, match: 13.1, picked: 20.4, saved: 95, photos: 2, found: true, moved: false, compares: 1, opens: 2, resting: '24', matchMs: 850, size: '4032x3024', earlier: 7.5 };
 savePriming({ items: [{ id: 60, photo: null, match: null, timing: tm }, { id: 61, photo: null, match: null }], client: { device: 'Phone 390x844@3', matcherLoadMs: 3100 } });
 assert.equal(TS.data.length, 2);
-assert.deepEqual(TS.data[1].slice(1), ['tester', APP_VERSION, 60, 4, '2026-10-13 09:15:02.120', 4.2, 11.5, 13.1, 20.4, 95, 2, 'yes', 'no', 1, 2, '24', 850, '4032x3024', 'Phone 390x844@3', 3100]);
+assert.deepEqual(TS.data[1].slice(1), ['tester', APP_VERSION, 60, 4, '2026-10-13 09:15:02.120', 4.2, 11.5, 13.1, 20.4, 95, 2, 'yes', 'no', 1, 2, '24', 850, '4032x3024', 'Phone 390x844@3', 3100, 7.5]);
 savePriming({ items: [{ id: 76, photo: null, match: null, timing: { opened: '', photo: '', crop: '', match: '', picked: '', saved: 'x', photos: 0, found: null, moved: null, compares: 0, opens: 1, resting: '', matchMs: '', size: '' } }] });
-assert.deepEqual(TS.data[2].slice(5, 21), ['', '', '', '', '', '', 0, '', '', 0, 1, '', '', '', '', '']);
+assert.deepEqual(TS.data[2].slice(5, 22), ['', '', '', '', '', '', 0, '', '', 0, 1, '', '', '', '', '', '']);
+TS.data[0].pop(); savePriming({ items: [{ id: 136, photo: null, match: null, timing: tm }] }); assert.equal(TS.data[0][21], 'Earlier tanks (s)');   // heading added to an older sheet
 delete FAKE.book.sheets['Timing']; savePriming({ items: [{ id: 88, photo: null, match: null, timing: tm }] });   // a sheet from an older version is added on the spot
 assert.equal(FAKE.book.sheets['Timing'].data.length, 2);
-[60, 61, 76, 88].forEach(id => { st = getState(); cancelPriming(st.frogs.find(f => f.id === id).open.id); });
+[60, 61, 76, 88, 136].forEach(id => { st = getState(); cancelPriming(st.frogs.find(f => f.id === id).open.id); });
 assert.equal(getState().recordTiming, true);
 // Code.gs run with other settings in a fresh copy of the fake services. Settings.gs is optional; what it leaves out comes from DEFAULTS.
 function withSettings(settings) {

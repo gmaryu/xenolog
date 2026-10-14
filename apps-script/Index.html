@@ -455,7 +455,9 @@ var Matcher = (function () {
   var MATCH_MIN = 10;      // matching points needed before a frog is called a match; different frogs gave 5 or fewer in tests
   var S = { data: null, thumbs: {}, basket: [], tab: 'priming', view: { name: 'tanks' }, shot: null, warn: null, confirm: null,
     big: false, error: '', tankPhotos: {}, feat: {}, detail: null, full: {}, addPhoto: null, busy: 0,
-    trial: null, since: { opens: 0, resting: [] } };   // timing of the frog being identified, written to the Timing sheet
+    trial: null, since: fresh() };   // timing of the frog being identified, written to the Timing sheet
+  // Counts since the last frog was chosen; they carry over when the person goes back and opens another tank.
+  function fresh() { return { first: null, opens: 0, photos: 0, compares: 0, resting: [] }; }
 
   /* ---------- server ---------- */
   function call(name, args, quiet) {
@@ -556,9 +558,9 @@ var Matcher = (function () {
   async function rank() {
     var s = S.shot;
     if (!s || !s.feat) return;
-    var frogs = present(s.tank), out = [], started = Date.now();
+    var tank = s.tank, frogs = present(tank), out = [], started = Date.now();
     for (var i = 0; i < frogs.length; i++) {
-      var list = refs(s.tank, frogs[i].id).filter(function (p) { return p.pattern; }), best = null;
+      var list = refs(tank, frogs[i].id).filter(function (p) { return p.pattern; }), best = null;
       for (var j = 0; j < list.length; j++) {
         var f = await featuresOf(list[j]);
         if (!f) continue;
@@ -568,7 +570,7 @@ var Matcher = (function () {
       }
       out.push({ id: frogs[i].id, score: best });
     }
-    if (S.shot !== s) return;
+    if (S.shot !== s || s.tank !== tank) return;     // the photo was taken on to another tank meanwhile
     out.sort(function (a, b) { return (b.score == null ? -1 : b.score) - (a.score == null ? -1 : a.score); });
     s.ranks = out.every(function (r) { return r.score == null; }) ? null : out;
     s.ranked = true; s.doneAt = Date.now(); s.rankMs = s.doneAt - started;   // the last run counts: it is the one whose result is on screen
@@ -628,9 +630,9 @@ var Matcher = (function () {
   }
   function takeShot(file, t) {
     var at = Date.now();
-    if (S.trial) S.trial.photos++;
+    S.since.photos++;
     shoot(file, async function (p) {
-      var shot = S.shot = { tank: t, full: p.full, pattern: p.pattern, thumb: p.thumb, crop: p.crop, feat: null, ranks: null, ranked: false,
+      var shot = S.shot = { tank: t, takenIn: t, full: p.full, pattern: p.pattern, thumb: p.thumb, crop: p.crop, feat: null, ranks: null, ranked: false,
         photoAt: at, cropAt: Date.now(), found: p.found, size: p.size };
       S.warn = null; render();
       var started = Date.now();
@@ -662,6 +664,7 @@ var Matcher = (function () {
       h += '<button class="btn" data-act="savePriming" id="btn-save-priming">Save priming</button>';
     } else h += '<p class="note">Take a frog out, then choose its tank below.</p>';
     h += '</div>';
+    if (S.shot) h += '<div class="row static">' + ph(S.shot.thumb, 40, 'new') + '<div class="grow"><div class="ttl">Photo not used yet</div><div class="sub">Taken while Tank ' + S.shot.takenIn + ' was open. Open the tank this frog came from to compare it there.</div></div><button class="link" data-act="dropShot" id="btn-drop-shot">Discard</button></div>';
     var names = ['Tanks with resting frogs (check the photo)', 'Tanks where every frog is available', 'Tanks with no available frog'];
     [0, 1, 2].forEach(function (k) {
       var list = infos.filter(function (i) { return i.kind === k; });
@@ -680,7 +683,7 @@ var Matcher = (function () {
     var i = tankInfo(t), h = head('Tank ' + t, true), has = S.shot && S.shot.tank === t;
     if (i.kind === 0) h += '<div class="alert rest">This tank has resting frogs. Check the frog you took against the photos.</div>';
     var away = i.all.filter(function (f) { return i.present.indexOf(f) < 0; });
-    if (has) h += '<div class="shot">' + ph(S.shot.pattern, 96, 'new') + '<div class="grow"><div class="ttl">New photo</div><p class="note">Retake the photo if the pattern is not clear.</p></div></div>';
+    if (has) h += '<div class="shot">' + ph(S.shot.pattern, 96, 'new') + '<div class="grow"><div class="ttl">New photo</div><p class="note">' + (S.shot.takenIn !== t ? 'Taken while Tank ' + S.shot.takenIn + ' was open. ' : '') + 'Retake the photo if the pattern is not clear.</p></div></div>';
     h += '<label class="btn' + (has ? ' ghost' : '') + '" for="file-cam" data-act="fileCtx" data-kind="shot" data-id="' + t + '" id="btn-cam">' + (has ? 'Retake photo' : 'Photograph the frog') + '</label>';
     var note = matchNote(t);
     if (note) h += '<p class="note">' + note + '</p>';
@@ -897,14 +900,15 @@ var Matcher = (function () {
       // Logged for later review: what the pattern check suggested (nothing, when no frog reached the threshold) and every count.
       if (s.ranks) { item.match = { tank: t, best: s.ranks[0].score >= MATCH_MIN ? s.ranks[0].id : '', scores: {} }; s.ranks.forEach(function (r) { if (r.score != null) item.match.scores[r.id] = r.score; }); }
     } else s = null;
-    var tr = S.trial && S.trial.tank === t ? S.trial : { opened: null, photos: 0, compares: 0 };
-    item.timing = { opened: tr.opened, photoAt: s && s.photoAt, cropAt: s && s.cropAt, doneAt: s && s.doneAt, pickedAt: Date.now(),
-      photos: tr.photos, found: s ? s.found : null, moved: s ? s.crop === 'manual' : null, compares: tr.compares, opens: S.since.opens,
-      resting: S.since.resting, matchMs: s && s.rankMs != null ? (s.describeMs || 0) + s.rankMs : null, size: s ? s.size : '' };
-    S.trial = null; S.since = { opens: 0, resting: [] };
+    var tr = S.trial && S.trial.tank === t ? S.trial : { opened: null }, n = S.since;
+    item.timing = { opened: tr.opened, first: n.first, photoAt: s && s.photoAt, cropAt: s && s.cropAt, doneAt: s && s.doneAt, pickedAt: Date.now(),
+      photos: n.photos, found: s ? s.found : null, moved: s ? s.crop === 'manual' : null, compares: n.compares, opens: n.opens,
+      resting: n.resting, matchMs: s && s.rankMs != null ? (s.describeMs || 0) + s.rankMs : null, size: s ? s.size : '' };
+    S.trial = null; S.since = fresh();
     S.basket.push(item); S.shot = null; go({ name: 'tanks' }); toast('#' + id + ' added to today\'s priming');
   }
-  // One Timing row per frog: the clock time the tank was opened, then seconds from there to each step.
+  // One Timing row per frog: the clock time the tank was opened, then seconds from there to each step
+  // (negative for a photo taken while another tank was open), and the seconds spent in tanks opened before it.
   function timingRow(tm, savedAt) {
     if (!tm) return null;
     var sec = function (ms) { return ms && tm.opened ? Math.round((ms - tm.opened) / 100) / 10 : ''; };
@@ -912,7 +916,7 @@ var Matcher = (function () {
     return { opened: d ? d.getFullYear() + '-' + two(d.getMonth() + 1) + '-' + two(d.getDate()) + ' ' + two(d.getHours()) + ':' + two(d.getMinutes()) + ':' + two(d.getSeconds()) + '.' + String(1000 + d.getMilliseconds()).slice(1) : '',
       photo: sec(tm.photoAt), crop: sec(tm.cropAt), match: sec(tm.doneAt), picked: sec(tm.pickedAt), saved: sec(savedAt),
       photos: tm.photos, found: tm.found, moved: tm.moved, compares: tm.compares, opens: tm.opens, resting: tm.resting.join(', '),
-      matchMs: tm.matchMs == null ? '' : tm.matchMs, size: tm.size || '' };
+      matchMs: tm.matchMs == null ? '' : tm.matchMs, size: tm.size || '', earlier: tm.first && tm.opened ? Math.round((tm.opened - tm.first) / 100) / 10 : '' };
   }
   function reload(quiet) {
     return call('getState', [], quiet).then(function (st) {
@@ -946,17 +950,20 @@ var Matcher = (function () {
     else if (act === 'back') {
       if (v.name === 'compare') go({ name: 'tank', id: v.tank });
       else if (v.name === 'hist') go({ name: 'frog', id: v.id });
-      else { S.shot = null; S.addPhoto = null; go({ name: home[S.tab] }); }
+      else { if (v.name !== 'tank') S.shot = null; S.addPhoto = null; go({ name: home[S.tab] }); }   // a photo taken in the wrong tank waits on the list
     }
     else if (act === 'dismiss') { S.error = ''; render(); }
+    else if (act === 'dropShot') { S.shot = null; render(); }
     else if (act === 'reload') reload().then(function () { toast('Up to date'); });
     else if (act === 'openTank') {
-      S.shot = null; S.trial = { tank: +id, opened: Date.now(), photos: 0, compares: 0 }; S.since.opens++;
+      var now = Date.now();
+      if (S.shot && S.shot.tank !== +id) { S.shot.tank = +id; S.shot.ranks = null; S.shot.ranked = false; }   // compared again with this tank's frogs
+      S.trial = { tank: +id, opened: now }; S.since.opens++; if (!S.since.first) S.since.first = now;
       go({ name: 'tank', id: +id }); loadTank(+id); Matcher.load();
     }
     else if (act === 'compare') {
       var tk = v.name === 'compare' ? v.tank : v.id;
-      if (v.name !== 'compare' && S.trial) S.trial.compares++;
+      if (v.name !== 'compare') S.since.compares++;
       go({ name: 'compare', tank: tk, id: +id, idx: 99, whole: false }, v.name === 'compare');
     }
     else if (act === 'photo') { v.idx = +id; render(); }

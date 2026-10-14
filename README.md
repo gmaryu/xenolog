@@ -75,7 +75,7 @@ You can edit Frogs and Records by hand. Keep the header row and column order, an
 
 ### Timing records
 
-With `recordTiming: true` (the default), each saved priming adds one row per frog to the Timing sheet: who saved it, the time the tank was opened, the seconds from there to the photo, the crop, the pattern check, the choice and the save, how many photos and comparisons were needed, which resting frogs were tried, how long matching took, the photo size, the phone's browser and screen, and the app version. It exists to measure how the app works in daily use. It shows how long each person took, so tell the people who use the app before you collect it. Set `recordTiming: false` to stop: the page then sends nothing and no Timing sheet is created; rows already written stay until you delete them.
+With `recordTiming: true` (the default), each saved priming adds one row per frog to the Timing sheet: who saved it, the time the frog's tank was opened, the seconds from there to the photo, the crop, the pattern check, the choice and the save (a photo taken while another tank was open shows as negative seconds), the seconds spent in tanks opened before it, how many photos and comparisons were needed, which resting frogs were tried, how long matching took, the photo size, the phone's browser and screen, and the app version. It exists to measure how the app works in daily use. It shows how long each person took, so tell the people who use the app before you collect it. Set `recordTiming: false` to stop: the page then sends nothing and no Timing sheet is created; rows already written stay until you delete them.
 
 ### Home-screen icon (optional)
 

@@ -60,9 +60,11 @@ const REC_COLS = ['Record ID', 'Animal ID', 'Priming Date', 'Collection Date', '
   'State', 'Origin', 'Original values', 'Created at', 'Updated at', 'Updated by'];
 const PHOTO_COLS = ['Photo ID', 'Animal ID', 'Date', 'Kind', 'Drive file ID', 'Thumb', 'Pattern', 'Embedding', 'Crop', 'Added by', 'Added at'];
 const MATCH_COLS = ['Time', 'User', 'Tank', 'Chosen ID', 'Suggested ID', 'Agreed', 'Matching points'];
-// One row per frog in a saved priming. The phone's clock time the tank was opened, then seconds from there to each step.
+// One row per frog in a saved priming. The phone's clock time the frog's tank was opened, then seconds from there to each step
+// (negative when the photo was taken while another tank was open). Counts and "Earlier tanks" cover every tank opened since the previous frog.
 const TIMING_COLS = ['Time', 'User', 'Version', 'Animal ID', 'Tank', 'Tank opened', 'Photo (s)', 'Crop (s)', 'Match (s)', 'Picked (s)', 'Saved (s)',
-  'Photos taken', 'Back found automatically', 'Crop adjusted', 'Compare opens', 'Tank opens', 'Resting frogs tried', 'Match ms', 'Photo size', 'Device', 'Matcher load ms'];
+  'Photos taken', 'Back found automatically', 'Crop adjusted', 'Compare opens', 'Tank opens', 'Resting frogs tried', 'Match ms', 'Photo size', 'Device', 'Matcher load ms',
+  'Earlier tanks (s)'];
 const ULAM_COLS = ['Animal ID', 'System #', 'Arrival Date', 'Source', 'Collection Date', '# Collected (Laid)', 'Appearance (Laid)',
   'After Ca2+ (Laid)', '# Collected (Squeezed)', 'Appearance (Squeezed)', 'After Ca2+ (Squeezed)', 'MMR H2O source', 'Notes',
   'Fertilized', '% viable pre-injection', '% viable post-injection'];
@@ -362,18 +364,18 @@ function savePriming(payload) {
   });
 }
 
-// Measurements for the study of the app in use. A sheet made before this version is added here, so a priming never fails for want of it.
+// Measurements for the study of the app in use. A missing sheet is created here, so a priming never fails for want of it.
 function saveTiming_(items, byId, client, stamp, user) {
   const timed = items.filter(function (it) { return it.timing; });
   if (!setting_('recordTiming') || !timed.length) return;
-  const sh = ss_().getSheetByName(SHEETS.TIMING) || ensureSheet_(SHEETS.TIMING, TIMING_COLS, [1, 2, 3, 6, 13, 14, 17, 19, 20]);
+  const sh = ensureSheet_(SHEETS.TIMING, TIMING_COLS, [1, 2, 3, 6, 13, 14, 17, 19, 20]);   // also adds headings of columns added since
   const num = function (v) { return v === '' || v == null || isNaN(Number(v)) ? '' : Number(v); };
   const yes = function (v) { return v == null ? '' : (v ? 'yes' : 'no'); };
   const rows = timed.map(function (it) {
     const t = it.timing;
     return [stamp, user, APP_VERSION, it.id, byId[it.id].tank, s_(t.opened).slice(0, 30), num(t.photo), num(t.crop), num(t.match), num(t.picked), num(t.saved),
       num(t.photos), yes(t.found), yes(t.moved), num(t.compares), num(t.opens), s_(t.resting).slice(0, 200), num(t.matchMs), s_(t.size).slice(0, 20),
-      s_(client.device).slice(0, 300), num(client.matcherLoadMs)];
+      s_(client.device).slice(0, 300), num(client.matcherLoadMs), num(t.earlier)];
   });
   sh.getRange(sh.getLastRow() + 1, 1, rows.length, TIMING_COLS.length).setValues(rows);
 }
