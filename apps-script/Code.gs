@@ -4,7 +4,7 @@
  * public functions below through google.script.run. Functions ending in "_" are private.
  *
  * This script only writes to the sheets it creates (Frogs, Records, Photos, Match log,
- * ULAM view, Import check). It reads "Form Responses 1" and "Shared with ULAM" during
+ * Timing, ULAM view, Import check). It reads "Form Responses 1" and "Shared with ULAM" during
  * the one-time import and never changes them.
  */
 
@@ -14,10 +14,12 @@ const FAVICON_URL = '';            // optional: public https link to a PNG shown
 const REST_MONTHS = 3;             // months a frog rests after a priming
 const TANK_SIZE = 3;               // frogs per housing tank
 const REMOVAL_REASONS = ['Died', 'Escaped', 'Euthanized', 'Other'];   // offered when a frog is removed from the colony
+const RECORD_TIMING = true;        // false stops the Timing sheet: how long each step of a priming took, per person (see README)
 const PHOTOS_PER_FROG = 5;      // newest photos sent to the page for comparison
 const CELL_LIMIT = 49000;       // Sheets refuses cells over 50,000 characters
 
-const SHEETS = { FROGS: 'Frogs', RECORDS: 'Records', PHOTOS: 'Photos', MATCH: 'Match log', ULAM: 'ULAM view', CHECK: 'Import check' };
+const APP_VERSION = '1.0.0';   // written into the Timing sheet, so collected data can be tied to a release
+const SHEETS = { FROGS: 'Frogs', RECORDS: 'Records', PHOTOS: 'Photos', MATCH: 'Match log', TIMING: 'Timing', ULAM: 'ULAM view', CHECK: 'Import check' };
 const LEGACY = { FORM: 'Form Responses 1', ULAM: 'Shared with ULAM' };
 
 const FROG_COLS = ['Animal ID', 'Status', 'Tank', 'Arrival date', 'Source', 'Notes', 'Removed on', 'Updated at', 'Updated by', 'Removal reason'];
@@ -27,6 +29,9 @@ const REC_COLS = ['Record ID', 'Animal ID', 'Priming Date', 'Collection Date', '
   'State', 'Origin', 'Original values', 'Created at', 'Updated at', 'Updated by'];
 const PHOTO_COLS = ['Photo ID', 'Animal ID', 'Date', 'Kind', 'Drive file ID', 'Thumb', 'Pattern', 'Embedding', 'Crop', 'Added by', 'Added at'];
 const MATCH_COLS = ['Time', 'User', 'Tank', 'Chosen ID', 'Suggested ID', 'Agreed', 'Matching points'];
+// One row per frog in a saved priming. The phone's clock time the tank was opened, then seconds from there to each step.
+const TIMING_COLS = ['Time', 'User', 'Version', 'Animal ID', 'Tank', 'Tank opened', 'Photo (s)', 'Crop (s)', 'Match (s)', 'Picked (s)', 'Saved (s)',
+  'Photos taken', 'Back found automatically', 'Crop adjusted', 'Compare opens', 'Tank opens', 'Resting frogs tried', 'Match ms', 'Photo size', 'Device', 'Matcher load ms'];
 const ULAM_COLS = ['Animal ID', 'System #', 'Arrival Date', 'Source', 'Collection Date', '# Collected (Laid)', 'Appearance (Laid)',
   'After Ca2+ (Laid)', '# Collected (Squeezed)', 'Appearance (Squeezed)', 'After Ca2+ (Squeezed)', 'MMR H2O source', 'Notes',
   'Fertilized', '% viable pre-injection', '% viable post-injection'];
@@ -200,7 +205,7 @@ function buildState_(withThumbs) {
     if (withThumbs && f.inColony && newest[f.id]) o.thumb = photoCells_(newest[f.id]).thumb;
     return o;
   });
-  return { user: user_(), today: today, restMonths: REST_MONTHS, tankSize: TANK_SIZE, appName: APP_NAME, options: OPTIONS, removalReasons: REMOVAL_REASONS, frogs: frogs,
+  return { user: user_(), today: today, recordTiming: RECORD_TIMING, restMonths: REST_MONTHS, tankSize: TANK_SIZE, appName: APP_NAME, options: OPTIONS, removalReasons: REMOVAL_REASONS, frogs: frogs,
     qualityRule: { squeezed: Math.round(QUALITY.squeezedWeight * 100), cycles: QUALITY.cycles, threshold: QUALITY.threshold, firstThreshold: QUALITY.firstThreshold } };
 }
 
@@ -338,8 +343,25 @@ function savePriming(payload) {
           JSON.stringify(it.match.scores || {})]);
       }
     });
+    saveTiming_(items, byId, payload.client || {}, stamp, user);
     return buildState_(false);
   });
+}
+
+// Measurements for the study of the app in use. A sheet made before this version is added here, so a priming never fails for want of it.
+function saveTiming_(items, byId, client, stamp, user) {
+  const timed = items.filter(function (it) { return it.timing; });
+  if (!RECORD_TIMING || !timed.length) return;
+  const sh = ss_().getSheetByName(SHEETS.TIMING) || ensureSheet_(SHEETS.TIMING, TIMING_COLS, [1, 2, 3, 6, 13, 14, 17, 19, 20]);
+  const num = function (v) { return v === '' || v == null || isNaN(Number(v)) ? '' : Number(v); };
+  const yes = function (v) { return v == null ? '' : (v ? 'yes' : 'no'); };
+  const rows = timed.map(function (it) {
+    const t = it.timing;
+    return [stamp, user, APP_VERSION, it.id, byId[it.id].tank, s_(t.opened).slice(0, 30), num(t.photo), num(t.crop), num(t.match), num(t.picked), num(t.saved),
+      num(t.photos), yes(t.found), yes(t.moved), num(t.compares), num(t.opens), s_(t.resting).slice(0, 200), num(t.matchMs), s_(t.size).slice(0, 20),
+      s_(client.device).slice(0, 300), num(client.matcherLoadMs)];
+  });
+  sh.getRange(sh.getLastRow() + 1, 1, rows.length, TIMING_COLS.length).setValues(rows);
 }
 
 function findRecord_(recordId) {
@@ -497,6 +519,7 @@ function setup() {
   ensureSheet_(SHEETS.RECORDS, REC_COLS, [1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]);
   ensureSheet_(SHEETS.PHOTOS, PHOTO_COLS, [1, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
   ensureSheet_(SHEETS.MATCH, MATCH_COLS, [1, 2, 7]);
+  if (RECORD_TIMING) ensureSheet_(SHEETS.TIMING, TIMING_COLS, [1, 2, 3, 6, 13, 14, 17, 19, 20]);
   ensureSheet_(SHEETS.ULAM, ULAM_COLS, [3, 4, 5, 13]);
   ensureSheet_(SHEETS.CHECK, CHECK_COLS, [5]);
   if (frogs.getLastRow() === 1 && typeof ROSTER !== 'undefined') {

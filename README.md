@@ -51,6 +51,7 @@ To update the code later, use **Deploy > Manage deployments**, edit the existing
 | Records | One row per priming, filled in at collection and at return |
 | Photos | One row per photo, with a thumbnail and the cropped back (the "Embedding" column is no longer used) |
 | Match log | What the automatic ranking suggested and what the person chose |
+| Timing | One row per frog in a saved priming: seconds from opening the tank to each step, retakes, crop corrections, resting frogs tried, matching time, photo size, device and app version. Kept for measuring the app in use |
 | ULAM view | A flat export of the collected records, rebuilt after each change |
 | Import check | Problems found by the optional legacy import |
 
@@ -64,8 +65,13 @@ The top of `Code.gs` has the values most labs will want to change:
 - `REST_MONTHS` – rest period after a priming
 - `TANK_SIZE` – frogs per housing tank
 - `REMOVAL_REASONS` – the reasons offered when a frog is removed
+- `RECORD_TIMING` – on by default; see below
 - `OPTIONS` – the choices in the record form
 - `QUALITY` – weights and thresholds for the egg-quality score
+
+### Timing records
+
+With `RECORD_TIMING = true` (the default), each saved priming adds one row per frog to the Timing sheet: who saved it, the time the tank was opened, the seconds from there to the photo, the crop, the pattern check, the choice and the save, how many photos and comparisons were needed, which resting frogs were tried, how long matching took, the photo size, the phone's browser and screen, and the app version. It exists to measure how the app works in daily use. It shows how long each person took, so tell the people who use the app before you collect it. Set `RECORD_TIMING = false` to stop: the page then sends nothing and no Timing sheet is created; rows already written stay until you delete them.
 
 ### Home-screen icon (optional)
 

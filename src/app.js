@@ -3,7 +3,8 @@
   var DAY = 86400000;
   var MATCH_MIN = 10;      // matching points needed before a frog is called a match; different frogs gave 5 or fewer in tests
   var S = { data: null, thumbs: {}, basket: [], tab: 'priming', view: { name: 'tanks' }, shot: null, warn: null, confirm: null,
-    big: false, error: '', tankPhotos: {}, feat: {}, detail: null, full: {}, addPhoto: null, busy: 0 };
+    big: false, error: '', tankPhotos: {}, feat: {}, detail: null, full: {}, addPhoto: null, busy: 0,
+    trial: null, since: { opens: 0, resting: [] } };   // timing of the frog being identified, written to the Timing sheet
 
   /* ---------- server ---------- */
   function call(name, args, quiet) {
@@ -104,7 +105,7 @@
   async function rank() {
     var s = S.shot;
     if (!s || !s.feat) return;
-    var frogs = present(s.tank), out = [];
+    var frogs = present(s.tank), out = [], started = Date.now();
     for (var i = 0; i < frogs.length; i++) {
       var list = refs(s.tank, frogs[i].id).filter(function (p) { return p.pattern; }), best = null;
       for (var j = 0; j < list.length; j++) {
@@ -119,7 +120,7 @@
     if (S.shot !== s) return;
     out.sort(function (a, b) { return (b.score == null ? -1 : b.score) - (a.score == null ? -1 : a.score); });
     s.ranks = out.every(function (r) { return r.score == null; }) ? null : out;
-    s.ranked = true;
+    s.ranked = true; s.doneAt = Date.now(); s.rankMs = s.doneAt - started;   // the last run counts: it is the one whose result is on screen
   }
   /* Crop screen: the photo with a square the person drags over the back. done() gets { full, pattern, thumb, crop }. */
   function cropEdit(r, done) {
@@ -164,7 +165,7 @@
       });
       document.getElementById('crop-ok').addEventListener('click', function () {
         busy(1);
-        Matcher.cropAt(st.full, st.sq).then(function (c) { busy(-1); close(); done({ full: st.full, pattern: c.pattern, thumb: c.thumb, crop: st.moved ? 'manual' : 'confirmed' }); })
+        Matcher.cropAt(st.full, st.sq).then(function (c) { busy(-1); close(); done({ full: st.full, pattern: c.pattern, thumb: c.thumb, crop: st.moved ? 'manual' : 'confirmed', found: st.crop === 'auto', size: r.size }); })
           .catch(function (e) { busy(-1); close(); fail(e); });
       });
     }
@@ -175,10 +176,15 @@
     Matcher.process(file).then(function (r) { busy(-1); cropEdit(r, done); }).catch(function (e) { busy(-1); fail(e); });
   }
   function takeShot(file, t) {
+    var at = Date.now();
+    if (S.trial) S.trial.photos++;
     shoot(file, async function (p) {
-      var shot = S.shot = { tank: t, full: p.full, pattern: p.pattern, thumb: p.thumb, crop: p.crop, feat: null, ranks: null, ranked: false };
+      var shot = S.shot = { tank: t, full: p.full, pattern: p.pattern, thumb: p.thumb, crop: p.crop, feat: null, ranks: null, ranked: false,
+        photoAt: at, cropAt: Date.now(), found: p.found, size: p.size };
       S.warn = null; render();
+      var started = Date.now();
       shot.feat = await Matcher.describe(shot.pattern);
+      shot.describeMs = Date.now() - started;
       if (S.shot !== shot) return;
       await rank();
       if (S.shot === shot) render();
@@ -432,15 +438,30 @@
   }
   function pick(id) {
     var f = frog(id), s = S.shot, t = f.tank;
-    if (status(f).k === 'rest') { S.warn = id; render(); return; }
+    if (status(f).k === 'rest') { S.warn = id; S.since.resting.push(id); render(); return; }
     if (status(f).k !== 'ok') return;
     var item = { id: id, tank: t, photo: null, match: null };
     if (s && s.tank === t) {
       item.photo = { full: s.full, pattern: s.pattern, thumb: s.thumb, emb: '', crop: s.crop };
       // Logged for later review: what the pattern check suggested (nothing, when no frog reached the threshold) and every count.
       if (s.ranks) { item.match = { tank: t, best: s.ranks[0].score >= MATCH_MIN ? s.ranks[0].id : '', scores: {} }; s.ranks.forEach(function (r) { if (r.score != null) item.match.scores[r.id] = r.score; }); }
-    }
+    } else s = null;
+    var tr = S.trial && S.trial.tank === t ? S.trial : { opened: null, photos: 0, compares: 0 };
+    item.timing = { opened: tr.opened, photoAt: s && s.photoAt, cropAt: s && s.cropAt, doneAt: s && s.doneAt, pickedAt: Date.now(),
+      photos: tr.photos, found: s ? s.found : null, moved: s ? s.crop === 'manual' : null, compares: tr.compares, opens: S.since.opens,
+      resting: S.since.resting, matchMs: s && s.rankMs != null ? (s.describeMs || 0) + s.rankMs : null, size: s ? s.size : '' };
+    S.trial = null; S.since = { opens: 0, resting: [] };
     S.basket.push(item); S.shot = null; go({ name: 'tanks' }); toast('#' + id + ' added to today\'s priming');
+  }
+  // One Timing row per frog: the clock time the tank was opened, then seconds from there to each step.
+  function timingRow(tm, savedAt) {
+    if (!tm) return null;
+    var sec = function (ms) { return ms && tm.opened ? Math.round((ms - tm.opened) / 100) / 10 : ''; };
+    var two = function (n) { return (n < 10 ? '0' : '') + n; }, d = tm.opened ? new Date(tm.opened) : null;
+    return { opened: d ? d.getFullYear() + '-' + two(d.getMonth() + 1) + '-' + two(d.getDate()) + ' ' + two(d.getHours()) + ':' + two(d.getMinutes()) + ':' + two(d.getSeconds()) + '.' + String(1000 + d.getMilliseconds()).slice(1) : '',
+      photo: sec(tm.photoAt), crop: sec(tm.cropAt), match: sec(tm.doneAt), picked: sec(tm.pickedAt), saved: sec(savedAt),
+      photos: tm.photos, found: tm.found, moved: tm.moved, compares: tm.compares, opens: tm.opens, resting: tm.resting.join(', '),
+      matchMs: tm.matchMs == null ? '' : tm.matchMs, size: tm.size || '' };
   }
   function reload(quiet) {
     return call('getState', [], quiet).then(function (st) {
@@ -478,9 +499,13 @@
     }
     else if (act === 'dismiss') { S.error = ''; render(); }
     else if (act === 'reload') reload().then(function () { toast('Up to date'); });
-    else if (act === 'openTank') { S.shot = null; go({ name: 'tank', id: +id }); loadTank(+id); Matcher.load(); }
+    else if (act === 'openTank') {
+      S.shot = null; S.trial = { tank: +id, opened: Date.now(), photos: 0, compares: 0 }; S.since.opens++;
+      go({ name: 'tank', id: +id }); loadTank(+id); Matcher.load();
+    }
     else if (act === 'compare') {
       var tk = v.name === 'compare' ? v.tank : v.id;
+      if (v.name !== 'compare' && S.trial) S.trial.compares++;
       go({ name: 'compare', tank: tk, id: +id, idx: 99, whole: false }, v.name === 'compare');
     }
     else if (act === 'photo') { v.idx = +id; render(); }
@@ -493,8 +518,9 @@
     else if (act === 'pick') pick(+id);
     else if (act === 'unpick') { S.basket = S.basket.filter(function (x) { return x.id !== +id; }); render(); }
     else if (act === 'savePriming') {
-      var items = S.basket.map(function (x) { return { id: x.id, photo: x.photo, match: x.match }; });
-      call('savePriming', [{ items: items }]).then(function (st) {
+      var on = S.data.recordTiming, savedAt = Date.now(), items = S.basket.map(function (x) { return { id: x.id, photo: x.photo, match: x.match, timing: on ? timingRow(x.timing, savedAt) : null }; });
+      var client = on ? { device: navigator.userAgent + ' ' + screen.width + 'x' + screen.height + '@' + (window.devicePixelRatio || 1), matcherLoadMs: Matcher.loadMs() } : null;
+      call('savePriming', [{ items: items, client: client }]).then(function (st) {
         S.basket.forEach(function (x) { if (x.photo) S.thumbs[x.id] = x.photo.thumb; delete S.tankPhotos[x.tank]; });
         var ids = S.basket.map(function (x) { return x.id; });
         S.basket = []; applyState(st); go({ name: 'tape', ids: ids });

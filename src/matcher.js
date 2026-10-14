@@ -5,7 +5,7 @@ var Matcher = (function () {
   var CV_URL = 'https://cdn.jsdelivr.net/npm/@techstark/opencv-js@4.12.0-release.1/dist/opencv.js';
   var FULL = 1280, PATTERN = 256, THUMB = 128, WORK = 200;
   var MATCH_SIDE = 384, MATCH_POINTS = 800, RATIO = 0.8;   // back image is enlarged to this size; ORB keeps this many points
-  var loading = null, status = 'idle', onStatus = function () {};
+  var loading = null, status = 'idle', onStatus = function () {}, loadMs = null;
 
   function setStatus(s) { status = s; try { onStatus(s); } catch (e) {} }
 
@@ -13,6 +13,7 @@ var Matcher = (function () {
   function load() {
     if (loading) return loading;
     setStatus('loading');
+    var started = Date.now();
     loading = new Promise(function (ok) {
       var s = document.createElement('script'), timer = setTimeout(function () { ok(false); }, 90000);
       s.src = CV_URL; s.async = true;
@@ -25,7 +26,7 @@ var Matcher = (function () {
         if (!c) { clearTimeout(timer); ok(false); } else if (c.Mat) done(); else c.onRuntimeInitialized = done;
       };
       document.head.appendChild(s);
-    }).then(function (good) { setStatus(good ? 'ready' : 'unavailable'); return good; });
+    }).then(function (good) { loadMs = Date.now() - started; setStatus(good ? 'ready' : 'unavailable'); return good; });
     return loading;
   }
 
@@ -205,8 +206,8 @@ var Matcher = (function () {
     return s;
   }
 
-  /** src: a File from the camera, or a data URL. Returns { full, pattern, thumb, crop, sq, width, height };
-      sq is the suggested crop square, which the person adjusts in the crop screen. */
+  /** src: a File from the camera, or a data URL. Returns { full, pattern, thumb, crop, sq, width, height, size };
+      sq is the suggested crop square, which the person adjusts in the crop screen; size is the photo as taken, "4032x3024". */
   function process(src) {
     return (typeof src === 'string' ? Promise.resolve(src) : readFile(src)).then(loadImage).then(function (img) {
       var full = scaled(img, FULL), box = null;
@@ -214,7 +215,7 @@ var Matcher = (function () {
       var crop = box ? 'auto' : 'centre';
       if (!box) { var s = Math.min(full.width, full.height) * 0.75; box = { x: (full.width - s) / 2, y: (full.height - s) / 2, w: s, h: s }; }
       var sq = squareOf(full, box), c = cuts(full, sq);
-      return { full: jpeg(full, 0.82), pattern: c.pattern, thumb: c.thumb, crop: crop, sq: sq, width: full.width, height: full.height };
+      return { full: jpeg(full, 0.82), pattern: c.pattern, thumb: c.thumb, crop: crop, sq: sq, width: full.width, height: full.height, size: img.width + 'x' + img.height };
     });
   }
   /** Cuts the chosen square out of a photo that process() returned. */
@@ -287,5 +288,5 @@ var Matcher = (function () {
   }
 
   return { load: load, process: process, scaled: scaled, loadImage: loadImage, readFile: readFile, cropAt: cropAt, rotate: rotate, describe: describe, count: count, findBack: findBack,
-    status: function () { return status; }, onStatus: function (f) { onStatus = f; } };
+    status: function () { return status; }, onStatus: function (f) { onStatus = f; }, loadMs: function () { return loadMs; } };
 })();

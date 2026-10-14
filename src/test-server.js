@@ -45,6 +45,28 @@ assert.throws(() => savePriming({ items: [{ id: 10 }] }), /already in use/);
 assert.equal(FAKE.book.sheets['Match log'].data[1][5], 'no');
 savePriming({ items: [{ id: 22, photo: null, match: { tank: 3, best: '', scores: { 22: 3 } } }, { id: 23, photo: null, match: { tank: 3, best: 23, scores: { 23: 40 } } }] });
 assert.deepEqual(FAKE.book.sheets['Match log'].data.slice(2).map(r => r[5]), ['no suggestion', 'yes']); returnFrog(getState().frogs.find(f => f.id === 22).open.id); returnFrog(getState().frogs.find(f => f.id === 23).open.id);
+// timing: one row per frog that carries it, nothing for the rest
+const TS = FAKE.book.sheets['Timing'];
+assert.deepEqual(TS.data[0], TIMING_COLS); assert.equal(TS.data.length, 1);
+const tm = { opened: '2026-10-13 09:15:02.120', photo: 4.2, crop: 11.5, match: 13.1, picked: 20.4, saved: 95, photos: 2, found: true, moved: false, compares: 1, opens: 2, resting: '24', matchMs: 850, size: '4032x3024' };
+savePriming({ items: [{ id: 60, photo: null, match: null, timing: tm }, { id: 61, photo: null, match: null }], client: { device: 'Phone 390x844@3', matcherLoadMs: 3100 } });
+assert.equal(TS.data.length, 2);
+assert.deepEqual(TS.data[1].slice(1), ['tester', APP_VERSION, 60, 4, '2026-10-13 09:15:02.120', 4.2, 11.5, 13.1, 20.4, 95, 2, 'yes', 'no', 1, 2, '24', 850, '4032x3024', 'Phone 390x844@3', 3100]);
+savePriming({ items: [{ id: 76, photo: null, match: null, timing: { opened: '', photo: '', crop: '', match: '', picked: '', saved: 'x', photos: 0, found: null, moved: null, compares: 0, opens: 1, resting: '', matchMs: '', size: '' } }] });
+assert.deepEqual(TS.data[2].slice(5, 21), ['', '', '', '', '', '', 0, '', '', 0, 1, '', '', '', '', '']);
+delete FAKE.book.sheets['Timing']; savePriming({ items: [{ id: 88, photo: null, match: null, timing: tm }] });   // a sheet from an older version is added on the spot
+assert.equal(FAKE.book.sheets['Timing'].data.length, 2);
+[60, 61, 76, 88].forEach(id => { st = getState(); cancelPriming(st.frogs.find(f => f.id === id).open.id); });
+assert.equal(getState().recordTiming, true);
+{ // with RECORD_TIMING = false nothing is created or written, even when the page sends timing
+  const ctx = vm.createContext({ ROSTER: globalThis.ROSTER, console });
+  vm.runInContext(fs.readFileSync('fakes.js', 'utf8'), ctx);
+  const code = fs.readFileSync(dir + 'Code.gs', 'utf8'); assert.ok(code.includes('const RECORD_TIMING = true;'));
+  vm.runInContext(code.replace('const RECORD_TIMING = true;', 'const RECORD_TIMING = false;'), ctx);
+  vm.runInContext("setup(); savePriming({ items: [{ id: 10, photo: null, match: null, timing: { opened: 'x' } }], client: {} });", ctx);
+  assert.equal(vm.runInContext("FAKE.book.sheets['Timing']", ctx), undefined); assert.equal(vm.runInContext('getState().recordTiming', ctx), false);
+  assert.equal(vm.runInContext("FAKE.book.sheets['Records'].data.length", ctx), 2);
+}
 const tp = getTankPhotos([10, 11]); assert.equal(tp[10].length, 1); assert.equal(tp[10][0].emb, 'ZW1i'); assert.equal(tp[11].length, 0);
 assert.equal(getFullPhoto(tp[10][0].photoId), 'data:image/jpeg;base64,AAAA');
 savePhotoDerived([{ photoId: tp[10][0].photoId, thumb: 'T2', pattern: 'P2', emb: 'E2', crop: 'centre' }]);

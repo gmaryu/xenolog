@@ -37,4 +37,4 @@ Nothing here has been run by an automated test against real Sheets or Drive. The
 
 ## Releasing to the lab
 
-The lab deployment uses this repository's `Code.gs` and `Index.html` with the private `Roster.gs`. After changes: rebuild, test, then paste into the Apps Script project and update the **existing** deployment to a new version (a new deployment would change the URL).
+The lab deployment uses this repository's `Code.gs` and `Index.html` with the private `Roster.gs`. After changes: rebuild, test, raise `APP_VERSION` in `Code.gs` (the Timing sheet records it so measurements can be tied to a release), then paste into the Apps Script project and update the **existing** deployment to a new version (a new deployment would change the URL).
