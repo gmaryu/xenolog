@@ -1,0 +1,1967 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>XenoLog</title>
+<style>
+/* Layout: one phone-width column, a sticky header, a fixed bottom tab bar; each screen is a short stack of rows. */
+:root {
+  --bg: #eef2f1;
+  --surface: #ffffff;
+  --line: #d3dcda;
+  --fg: #14282a;
+  --muted: #5a6f70;
+  --accent: #0f6e73;
+  --accent-fg: #ffffff;
+  --ok: #1f7a45;      --ok-bg: #dff1e6;
+  --rest: #8a5a00;    --rest-bg: #f8ebcc;
+  --use: #2b53a8;     --use-bg: #dfe7f8;
+  --danger: #a8322b;  --danger-bg: #f8e0de;
+  --font-body: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --font-id: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1819; --surface: #172526; --line: #2b3d3e; --fg: #e3eceb; --muted: #93a8a8;
+    --accent: #4fb8bd; --accent-fg: #06201f;
+    --ok: #7ed3a0; --ok-bg: #173524; --rest: #e8c26a; --rest-bg: #3a2e10;
+    --use: #9db8f2; --use-bg: #1b2a4a; --danger: #f09a93; --danger-bg: #401c19;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1819; --surface: #172526; --line: #2b3d3e; --fg: #e3eceb; --muted: #93a8a8;
+  --accent: #4fb8bd; --accent-fg: #06201f;
+  --ok: #7ed3a0; --ok-bg: #173524; --rest: #e8c26a; --rest-bg: #3a2e10;
+  --use: #9db8f2; --use-bg: #1b2a4a; --danger: #f09a93; --danger-bg: #401c19;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.55; }
+#app { max-width: 520px; margin: 0 auto; padding-inline: 16px; padding-block: 0 96px; display: flex; flex-direction: column; gap: 14px; }
+header.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); padding-block: 12px 8px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--line); }
+header.top h1 { font-size: 17px; font-weight: 700; margin: 0; flex: 1; min-width: 0; text-wrap: balance; }
+.back { border: 0; background: none; color: var(--accent); font: inherit; font-weight: 700; padding: 6px 4px; cursor: pointer; }
+.note { font-size: 12.5px; color: var(--muted); margin: 0; }
+.demo { font-size: 12.5px; color: var(--muted); display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+.link { border: 0; background: none; color: var(--accent); font: inherit; font-size: 12.5px; text-decoration: underline; cursor: pointer; padding: 4px 0; }
+h2 { font-size: 12.5px; font-weight: 700; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; margin: 6px 0 0; }
+.stack { display: flex; flex-direction: column; gap: 8px; }
+.row { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.row.static { cursor: default; }
+.row .grow, .grow { flex: 1; min-width: 0; }
+.ttl { font-weight: 700; }
+.sub { font-size: 12.5px; color: var(--muted); }
+.id { font-family: var(--font-id); font-variant-numeric: tabular-nums; font-weight: 500; }
+.pill { display: inline-block; font-size: 12px; font-weight: 700; padding: 1px 8px; border-radius: 999px; white-space: nowrap; }
+.pill.ok { background: var(--ok-bg); color: var(--ok); }
+.pill.rest { background: var(--rest-bg); color: var(--rest); }
+.pill.use { background: var(--use-bg); color: var(--use); }
+.pill.off { background: var(--line); color: var(--muted); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.chip { font-family: var(--font-id); font-size: 12.5px; padding: 1px 7px; border-radius: 4px; border: 1px solid var(--line); }
+.chip.ok { border-color: var(--ok); color: var(--ok); }
+.chip.rest { background: var(--rest-bg); color: var(--rest); border-color: transparent; }
+.chip.use { background: var(--use-bg); color: var(--use); border-color: transparent; }
+.count { font-family: var(--font-id); font-size: 15px; font-weight: 500; white-space: nowrap; }
+.ph { border-radius: 4px; display: block; flex: none; background: var(--line); }
+.ph.fill { width: 100%; height: auto; aspect-ratio: 1; }
+.ph[data-zoom] { cursor: zoom-in; }
+#zoom { position: fixed; inset: 0; z-index: 8; background: var(--bg); display: flex; align-items: center; justify-content: center; padding: 16px; cursor: zoom-out; }
+#zoom .zin { width: 100%; max-width: 520px; display: flex; flex-direction: column; gap: 10px; }
+#zoom p { margin: 0; }
+.btn { border: 1px solid var(--accent); background: var(--accent); color: var(--accent-fg); font: inherit; font-weight: 700; padding: 11px 14px; border-radius: 6px; cursor: pointer; width: 100%; }
+.btn.ghost { background: transparent; color: var(--accent); }
+.btn.danger { background: transparent; border-color: var(--danger); color: var(--danger); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btnrow { display: flex; gap: 8px; flex-wrap: wrap; }
+.btnrow .btn { flex: 1 1 130px; }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, label.seg:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.alert { border-radius: 6px; padding: 10px 12px; font-size: 13.5px; }
+.alert.rest { background: var(--rest-bg); color: var(--rest); }
+.alert.danger { background: var(--danger-bg); color: var(--danger); }
+.alert.use { background: var(--use-bg); color: var(--use); }
+.alert.ok { background: var(--ok-bg); color: var(--ok); }
+.shot { display: flex; gap: 12px; align-items: center; background: var(--surface); border: 1px dashed var(--line); border-radius: 6px; padding: 10px 12px; }
+.cand { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; display: flex; flex-direction: column; gap: 10px; }
+.cand .line { display: flex; align-items: center; gap: 12px; }
+.sim { font-family: var(--font-id); font-size: 12.5px; color: var(--muted); }
+.bar { height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; margin-top: 3px; }
+.bar i { display: block; height: 100%; background: var(--accent); }
+.basket { background: var(--surface); border: 1px solid var(--accent); border-radius: 6px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.tape { font-family: var(--font-id); background: var(--surface); border: 1px solid var(--line); border-left: 6px solid var(--accent); padding: 10px 12px; font-size: 16px; display: flex; justify-content: space-between; gap: 12px; }
+.cmp { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.cmp.big { grid-template-columns: 1fr; }
+.cmp figure { margin: 0; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.cmp figcaption { font-size: 12.5px; color: var(--muted); }
+.cmp figcaption strong { color: var(--fg); }
+.empty { aspect-ratio: 1; border: 1px dashed var(--line); border-radius: 4px; display: flex; align-items: center; justify-content: center; text-align: center; padding: 12px; font-size: 12.5px; color: var(--muted); }
+.thumbs { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
+.thumb { border: 2px solid transparent; background: none; padding: 2px; border-radius: 6px; font: inherit; color: var(--muted); font-size: 11.5px; cursor: pointer; flex: none; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.thumb[aria-current="true"] { border-color: var(--accent); color: var(--fg); }
+.switch { display: flex; gap: 6px; flex-wrap: wrap; }
+.switch button { flex: 1 1 80px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); font: inherit; border-radius: 6px; padding: 7px 6px; cursor: pointer; }
+.switch button[aria-current="true"] { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+form.rec { display: flex; flex-direction: column; gap: 14px; }
+.field { display: flex; flex-direction: column; gap: 5px; }
+.field > span, fieldset legend { font-size: 12.5px; font-weight: 700; color: var(--muted); }
+fieldset { border: 0; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+input[type=text], input[type=date], select, textarea { font: inherit; color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 9px 10px; width: 100%; }
+.segs { display: flex; gap: 6px; flex-wrap: wrap; }
+label.seg { flex: 1 1 60px; text-align: center; border: 1px solid var(--line); background: var(--surface); border-radius: 6px; padding: 8px 6px; cursor: pointer; font-weight: 500; }
+label.seg input { position: absolute; opacity: 0; pointer-events: none; }
+label.seg:has(input:checked) { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+dl.kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; margin: 0; font-size: 14px; }
+dl.kv dt { color: var(--muted); } dl.kv dd { margin: 0; }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { color: var(--muted); font-weight: 700; }
+td.chg { color: var(--accent); font-weight: 700; }
+nav.tabs { position: fixed; left: 0; right: 0; bottom: 0; background: var(--surface); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom, 0px); z-index: 6; }
+nav.tabs div { max-width: 520px; margin: 0 auto; display: flex; }
+nav.tabs button { flex: 1; border: 0; background: none; font: inherit; color: var(--muted); padding: 12px 4px; font-weight: 700; cursor: pointer; border-top: 3px solid transparent; }
+nav.tabs button[aria-current="page"] { color: var(--accent); border-top-color: var(--accent); }
+#toast { position: fixed; left: 50%; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 8px 14px; border-radius: 6px; font-size: 13.5px; z-index: 7; max-width: calc(100% - 32px); }
+
+[hidden] { display: none !important; }
+.ph { object-fit: cover; }
+.ph.none { display: flex; align-items: center; justify-content: center; text-align: center; font-size: 10.5px; color: var(--muted); line-height: 1.2; }
+.ph.fill.none { font-size: 12.5px; }
+label.btn { display: block; text-align: center; }
+label.btn input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
+#busy { position: fixed; inset: 0; z-index: 9; background: color-mix(in srgb, var(--bg) 70%, transparent); display: flex; align-items: center; justify-content: center; font-weight: 700; }
+.who { font-size: 12.5px; color: var(--muted); display: flex; justify-content: space-between; gap: 8px; }
+#cropper { position: fixed; inset: 0; z-index: 8; background: var(--bg); overflow-y: auto; }
+#cropper .crop-in { max-width: 520px; margin: 0 auto; padding-inline: 16px; padding-block: 0 24px; display: flex; flex-direction: column; gap: 12px; }
+.crop-stage { position: relative; overflow: hidden; border-radius: 4px; line-height: 0; user-select: none; -webkit-user-select: none; }
+.crop-stage img { width: 100%; display: block; pointer-events: none; }
+#crop-frame { position: absolute; border: 2px solid var(--accent-fg); outline: 2px solid var(--accent); box-shadow: 0 0 0 2000px rgba(0, 0, 0, .5); touch-action: none; cursor: move; }
+input[type=range] { width: 100%; accent-color: var(--accent); }
+.sr-file { position: fixed; left: 0; bottom: 0; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<nav class="tabs" aria-label="Main"><div id="tabs"></div></nav>
+<div id="toast" role="status" hidden></div>
+<div id="zoom" hidden></div>
+<div id="cropper" hidden></div>
+<!-- File inputs live outside #app so a re-render while the camera is open cannot detach them. -->
+<input type="file" accept="image/*" capture="environment" id="file-cam" class="sr-file" tabindex="-1" aria-hidden="true">
+<input type="file" accept="image/*" id="file-lib" class="sr-file" tabindex="-1" aria-hidden="true">
+<div id="busy" role="status" hidden>Working...</div>
+<div class="demo" id="demo-bar" style="max-width:520px;margin:0 auto;padding:8px 16px;box-sizing:border-box">
+<span>Demo with a made-up colony. Nothing is saved.</span><a class="link" href="" id="demo-reset" style="white-space:nowrap">Start over</a></div>
+<script>
+/* In-memory stand-ins for the Apps Script services, so Code.gs can run in Node and in a plain browser page. */
+(function (g) {
+  function Range(sh, r, c, nr, nc) { this.sh = sh; this.r = r; this.c = c; this.nr = nr; this.nc = nc; }
+  Range.prototype.getValues = function () { var o = []; for (var i = 0; i < this.nr; i++) { var row = []; for (var j = 0; j < this.nc; j++) { var v = (this.sh.data[this.r - 1 + i] || [])[this.c - 1 + j]; row.push(v === undefined ? '' : v); } o.push(row); } return o; };
+  Range.prototype.getDisplayValues = function () { return this.getValues().map(function (r) { return r.map(String); }); };
+  Range.prototype.setValues = function (vals) {
+    if (vals.length !== this.nr || vals.some(function (r) { return r.length !== this.nc; }, this)) throw new Error('setValues size mismatch on ' + this.sh.name + ': range ' + this.nr + 'x' + this.nc + ', data ' + vals.length + 'x' + (vals[0] || []).length);
+    for (var i = 0; i < this.nr; i++) { var row = this.sh.data[this.r - 1 + i] = this.sh.data[this.r - 1 + i] || []; for (var j = 0; j < this.nc; j++) { if (String(vals[i][j]).length > 50000) throw new Error('cell over 50000 chars'); row[this.c - 1 + j] = vals[i][j]; } }
+    return this;
+  };
+  Range.prototype.setValue = function (v) { return this.setValues([[v]]); };
+  Range.prototype.clearContent = function () { for (var i = 0; i < this.nr; i++) { var row = this.sh.data[this.r - 1 + i]; if (row) for (var j = 0; j < this.nc; j++) row[this.c - 1 + j] = ''; } while (this.sh.data.length && this.sh.data[this.sh.data.length - 1].every(function (x) { return x === '' || x === undefined; })) this.sh.data.pop(); return this; };
+  Range.prototype.setNumberFormat = function () { return this; };
+  function Sheet(name, data) { this.name = name; this.data = data || []; }
+  Sheet.prototype.getLastRow = function () { return this.data.length; };
+  Sheet.prototype.getLastColumn = function () { return this.data.reduce(function (m, r) { return Math.max(m, r.length); }, 0); };
+  Sheet.prototype.getMaxRows = function () { return 1000; };
+  Sheet.prototype.getRange = function (r, c, nr, nc) { return new Range(this, r, c, nr || 1, nc || 1); };
+  Sheet.prototype.getDataRange = function () { return new Range(this, 1, 1, Math.max(1, this.getLastRow()), Math.max(1, this.getLastColumn())); };
+  Sheet.prototype.appendRow = function (row) { this.data.push(row.slice()); return this; };
+  Sheet.prototype.setFrozenRows = function () {};
+  var book = { sheets: {}, getSheetByName: function (n) { return this.sheets[n] || null; }, insertSheet: function (n) { return (this.sheets[n] = new Sheet(n)); },
+    getSpreadsheetTimeZone: function () { return 'America/Detroit'; }, toast: function () {} };
+  var props = {}, files = {}, fakeNow = null;
+  g.FAKE = { book: book, files: files, user: 'tester@example.edu', addSheet: function (n, data) { book.sheets[n] = new Sheet(n, data); }, setToday: function (iso) { fakeNow = iso; } };
+  g.SpreadsheetApp = { getActiveSpreadsheet: function () { return book; }, getUi: function () { var m = { addItem: function () { return m; }, addToUi: function () {} }; return { createMenu: function () { return m; } }; } };
+  g.Session = { getActiveUser: function () { return { getEmail: function () { return g.FAKE.user; } }; } };
+  g.LockService = { getScriptLock: function () { return { waitLock: function () {}, releaseLock: function () {} }; } };
+  g.PropertiesService = { getScriptProperties: function () { return { getProperty: function (k) { return props[k] || null; }, setProperty: function (k, v) { props[k] = v; } }; } };
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  g.Utilities = {
+    formatDate: function (d, tz, f) { if (fakeNow && f === 'yyyy-MM-dd') return fakeNow; var day = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); return f === 'yyyy-MM-dd' ? day : (fakeNow || day) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds()); },
+    getUuid: function () { return 'xxxxxxxx-xxxx'.replace(/x/g, function () { return Math.floor(Math.random() * 16).toString(16); }); },
+    base64Decode: function (s) { return s; }, base64Encode: function (b) { return b; },
+    newBlob: function (bytes, type, name) { return { bytes: bytes, type: type, name: name }; }
+  };
+  var n = 0;
+  function folder(id) { return { getId: function () { return id; }, createFile: function (blob) { var fid = 'file' + (++n); files[fid] = blob; return { getId: function () { return fid; } }; },
+    getFoldersByName: function () { return { hasNext: function () { return false; } }; }, createFolder: function () { return folder('sub'); }, getFiles: function () { return { hasNext: function () { return false; } }; } }; }
+  g.DriveApp = { createFolder: function () { return folder('folder1'); }, getFolderById: function (id) { return folder(id); },
+    getFileById: function (id) { var b = files[id]; if (!b) throw new Error('no file'); return { getBlob: function () { return { getContentType: function () { return b.type; }, getBytes: function () { return b.bytes; } }; } }; } };
+  g.HtmlService = {};
+})(typeof window !== 'undefined' ? window : globalThis);
+</script>
+<script>
+/* Made-up colony for the public demo (docs/demo/). Dates are counted back from today, so the demo looks the same whenever it is opened.
+ * Loaded after fakes.js and before Code.gs (ROSTER), and demoSeed() runs after setup(). No real animal, person or photo is in here. */
+var DEMO_DAY = 86400000;
+function demoAgo(days) { var d = new Date(Date.now() - days * DEMO_DAY); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+
+// [Animal ID, tank (0 = removed), arrival, removal reason, cycles oldest to newest, days since the newest priming]
+// Cycles are egg grades (DEMO_GRADES); a frog with none was never primed.
+var DEMO_FROGS = [
+  [1, 1, '2024-11', '', ['great', 'good', 'great'], 220],
+  [2, 1, '2024-11', '', ['good', 'good'], 180],
+  [3, 1, '2024-11', '', ['good', 'fair', 'good'], 160],
+  [4, 0, '2024-11', 'Died', ['good'], 400],
+  [5, 2, '2025-02', '', ['great', 'great'], 200],
+  [6, 2, '2025-02', '', ['good', 'great', 'good'], 40],
+  [7, 2, '2025-02', '', ['fair', 'good'], 150],
+  [8, 3, '2025-02', '', ['good', 'good'], 190],
+  [9, 3, '2025-05', '', ['great'], 170],
+  [10, 3, '2025-05', '', ['good', 'good'], 25],
+  [11, 4, '2025-05', '', ['good', 'great'], 70],
+  [12, 0, '2025-05', 'Euthanized', ['poor', 'poor'], 260],
+  [13, 4, '2025-05', '', ['poor', 'fair', 'poor'], 140],
+  [14, 4, '2025-09', '', ['good'], 200],
+  [15, 5, '2025-09', '', ['great', 'good'], 120],
+  [16, 5, '2025-09', '', ['bad'], 135],
+  [17, 5, '2025-09', '', ['good'], 100],
+  [18, 6, demoAgo(60).slice(0, 7), '', [], 0],
+  [19, 7, demoAgo(21).slice(0, 7), '', [], 0]
+];
+// Squeezed quantity, appearance, Ca; laid quantity, appearance, Ca
+var DEMO_GRADES = {
+  great: ['Many', 'Great', 'Looking good', 'Normal', 'Good', 'Looking good'],
+  good: ['Normal', 'Good', 'Looking good', 'Normal', 'Good', ''],
+  fair: ['Few', 'Not bad', 'Looking good', 'Few', 'Good', ''],
+  poor: ['Few', 'Bad', 'Turned to white', 'None', 'None', ''],
+  bad: ['None', 'None', '', 'Few', 'Bad', 'Turned to white']
+};
+var DEMO_PEOPLE = ['alex', 'sam', 'kim'];
+var DEMO_CYCLE = 130;   // days between earlier primings of the same frog
+
+var ROSTER = DEMO_FROGS.map(function (f) { return [f[0], f[1] > 0, f[1] || '', f[2], 'Example supplier', '']; });
+
+// A mottled olive square standing in for the back of a frog. Same seed, same pattern.
+function demoBack(seed, side) {
+  var c = document.createElement('canvas'), g = c.getContext('2d'), s = seed * 2654435761 >>> 0;
+  function rnd() { s = (s + 0x6D2B79F5) >>> 0; var t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }
+  c.width = c.height = side;
+  var bg = g.createRadialGradient(side * 0.5, side * 0.45, side * 0.1, side * 0.5, side * 0.5, side * 0.75);
+  bg.addColorStop(0, '#7d7a55'); bg.addColorStop(1, '#4e4d33');
+  g.fillStyle = bg; g.fillRect(0, 0, side, side);
+  for (var i = 0, n = 35 + Math.floor(rnd() * 30); i < n; i++) {
+    g.fillStyle = 'rgba(34,36,22,' + (0.45 + rnd() * 0.45) + ')';
+    g.beginPath();
+    g.ellipse(rnd() * side, rnd() * side, side * (0.01 + rnd() * 0.06), side * (0.01 + rnd() * 0.04), rnd() * Math.PI, 0, 2 * Math.PI);
+    g.fill();
+  }
+  for (var j = 0; j < 220; j++) { g.fillStyle = rnd() < 0.5 ? 'rgba(20,20,10,.35)' : 'rgba(190,185,140,.25)'; g.fillRect(rnd() * side, rnd() * side, 2, 2); }
+  return c.toDataURL('image/jpeg', 0.8);
+}
+
+function demoSeed() {
+  var recSheet = sheet_(SHEETS.RECORDS), photoSheet = sheet_(SHEETS.PHOTOS), frogSheet = sheet_(SHEETS.FROGS), stamp = now_(), k = 0;
+  // Eggs are collected the day after the priming.
+  function record(frog, days, grade, state, name) {
+    var r = REC_COLS.map(function () { return ''; }), g = grade ? DEMO_GRADES[grade] : null;
+    r[0] = 'D' + (++k); r[1] = frog; r[2] = demoAgo(days); r[4] = name; r[13] = state; r[14] = 'app'; r[16] = r[17] = stamp; r[18] = name;
+    if (g) { r[3] = demoAgo(days - 1); r[5] = k % 3 ? 'MilliQ' : 'RO'; for (var i = 0; i < 6; i++) r[6 + i] = g[i]; }
+    recSheet.appendRow(r);
+  }
+  DEMO_FROGS.forEach(function (f, n) {
+    var id = f[0], cycles = f[4];
+    cycles.forEach(function (grade, i) {
+      record(id, f[5] + (cycles.length - 1 - i) * DEMO_CYCLE, grade, 'Returned', DEMO_PEOPLE[(n + i) % DEMO_PEOPLE.length]);
+    });
+    if (!f[1]) {
+      var row = readFrogs_().filter(function (x) { return x.id === id; })[0].row;
+      frogSheet.getRange(row, 7, 1, 4).setValues([[demoAgo(f[5] - 30), stamp, 'demo', f[3]]]);
+      return;
+    }
+    savePhoto_(id, { full: demoBack(id, 640), pattern: demoBack(id, 256), thumb: demoBack(id, 128), emb: '', crop: 'manual' }, 'registration', 'demo');
+    photoSheet.getRange(photoSheet.getLastRow(), 3).setValue(f[2].length === 7 ? f[2] + '-15' : f[2]);
+  });
+  // Two frogs out of their tank today: one waiting for its egg record, one recorded and waiting to go back.
+  record(8, 1, null, 'In use', 'sam');
+  record(9, 1, 'great', 'Recorded', 'alex');
+  rebuildUlam_();
+}
+/** Lab settings. Paste into Apps Script as the "Settings" file and change what differs in your lab.
+ *  Code.gs holds the defaults (DEFAULTS); any key you delete here falls back to them, and updating Code.gs never touches this file.
+ *  If you rename a choice in options.appearance or options.quantity, give it a value in quality.appearance or quality.quantity too. */
+const SETTINGS = {
+  appName: 'XenoLog',            // browser tab title and the name of the spreadsheet menu
+  faviconUrl: '',                // optional: public https link to a PNG shown in the browser tab
+  restMonths: 3,                 // months a frog rests after a priming
+  tankSize: 3,                   // frogs per housing tank
+  removalReasons: ['Died', 'Escaped', 'Euthanized', 'Other'],   // offered when a frog is removed from the colony
+  recordTiming: true,            // false stops the Timing sheet: how long each step of a priming took, per person (see README)
+
+  // Choices offered in the record form, least to most favourable.
+  options: {
+    water: ['MilliQ', 'RO'],
+    quantity: ['None', 'Few', 'Normal', 'Many'],
+    appearance: ['None', 'Bad', 'Not bad', 'Good', 'Great'],
+    ca: ['Turned to white', 'Looking good']
+  },
+
+  // Egg quality score and replacement candidates. appearance and quantity give each choice above a value; 0 means no usable eggs.
+  quality: {
+    squeezedWeight: 0.7,     // squeezed eggs count this much, laid eggs the rest
+    appearanceWeight: 0.7,   // within one egg type: appearance counts this much, quantity the rest
+    cycles: 3,               // how many of the most recent cycles are averaged
+    threshold: 45,           // candidate when the average of two or more cycles is below this (0-100)
+    firstThreshold: 30,      // candidate when the only cycle so far scored this or less
+    appearance: { 'Great': 4, 'Good': 3, 'Not bad': 2, 'Bad': 1, 'None': 0 },
+    quantity: { 'Many': 3, 'Normal': 2, 'Few': 1, 'None': 0 }
+  },
+
+  // Only for "Import legacy records": old water-source spellings in your form, lower case, and the choice each is read as.
+  legacyWater: { 'milliq': 'MilliQ', 'milli-q': 'MilliQ', 'ro': 'RO', '-': '' }
+};
+/**
+ * XenoLog - server side.
+ * Google Apps Script bound to the lab spreadsheet. The web page (Index.html) calls the
+ * public functions below through google.script.run. Functions ending in "_" are private.
+ *
+ * This script only writes to the sheets it creates (Frogs, Records, Photos, Match log,
+ * Timing, ULAM view, Import check). It reads "Form Responses 1" and "Shared with ULAM" during
+ * the one-time import and never changes them.
+ */
+
+/* ------------------------------------------------------------------ lab settings
+ * Each lab sets its own values in Settings.gs (const SETTINGS = { ... }), so pasting a newer Code.gs keeps them.
+ * A key left out there takes the value below; options, quality and legacyWater are merged key by key. */
+const DEFAULTS = {
+  appName: 'XenoLog',            // browser tab title and the name of the spreadsheet menu
+  faviconUrl: '',                // optional: public https link to a PNG shown in the browser tab
+  restMonths: 3,                 // months a frog rests after a priming
+  tankSize: 3,                   // frogs per housing tank
+  removalReasons: ['Died', 'Escaped', 'Euthanized', 'Other'],   // offered when a frog is removed from the colony
+  recordTiming: true,            // false stops the Timing sheet: how long each step of a priming took, per person (see README)
+  // Choices offered in the record form, least to most favourable.
+  options: {
+    water: ['MilliQ', 'RO'],
+    quantity: ['None', 'Few', 'Normal', 'Many'],
+    appearance: ['None', 'Bad', 'Not bad', 'Good', 'Great'],
+    ca: ['Turned to white', 'Looking good']
+  },
+  // Egg quality score and replacement candidates. appearance and quantity give each choice above a value; 0 means no usable eggs.
+  quality: {
+    squeezedWeight: 0.7,     // squeezed eggs count this much, laid eggs the rest
+    appearanceWeight: 0.7,   // within one egg type: appearance counts this much, quantity the rest
+    cycles: 3,               // how many of the most recent cycles are averaged
+    threshold: 45,           // candidate when the average of two or more cycles is below this (0-100)
+    firstThreshold: 30,      // candidate when the only cycle so far scored this or less
+    appearance: { 'Great': 4, 'Good': 3, 'Not bad': 2, 'Bad': 1, 'None': 0 },
+    quantity: { 'Many': 3, 'Normal': 2, 'Few': 1, 'None': 0 }
+  },
+  // Old water-source spellings in the legacy form, lower case, and the choice each is read as.
+  legacyWater: { 'milliq': 'MilliQ', 'milli-q': 'MilliQ', 'ro': 'RO', '-': '' }
+};
+// Read when needed, never at load time: Apps Script does not promise the order in which Settings.gs and Code.gs load.
+function setting_(key) {
+  const own = typeof SETTINGS === 'undefined' ? {} : SETTINGS, d = DEFAULTS[key];
+  if (!(key in own)) return d;
+  const v = own[key];
+  return d && typeof d === 'object' && !Array.isArray(d) && v && typeof v === 'object' ? Object.assign({}, d, v) : v;
+}
+
+const PHOTOS_PER_FROG = 5;      // newest photos sent to the page for comparison
+const CELL_LIMIT = 49000;       // Sheets refuses cells over 50,000 characters
+
+const APP_VERSION = '1.0.0';   // written into the Timing sheet, so collected data can be tied to a release
+const SHEETS = { FROGS: 'Frogs', RECORDS: 'Records', PHOTOS: 'Photos', MATCH: 'Match log', TIMING: 'Timing', ULAM: 'ULAM view', CHECK: 'Import check' };
+const LEGACY = { FORM: 'Form Responses 1', ULAM: 'Shared with ULAM' };
+
+const FROG_COLS = ['Animal ID', 'Status', 'Tank', 'Arrival date', 'Source', 'Notes', 'Removed on', 'Updated at', 'Updated by', 'Removal reason'];
+const REC_COLS = ['Record ID', 'Animal ID', 'Priming Date', 'Collection Date', 'Name', 'MMR H2O source',
+  'Quantity (Squeezed Eggs)', 'Appearance (Squeezed Eggs)', 'After Ca activation (Squeezed Eggs)',
+  'Quantity (Laid Eggs)', 'Appearance (Laid Eggs)', 'After Ca activation (Laid Eggs)', 'Comments',
+  'State', 'Origin', 'Original values', 'Created at', 'Updated at', 'Updated by'];
+const PHOTO_COLS = ['Photo ID', 'Animal ID', 'Date', 'Kind', 'Drive file ID', 'Thumb', 'Pattern', 'Embedding', 'Crop', 'Added by', 'Added at'];
+const MATCH_COLS = ['Time', 'User', 'Tank', 'Chosen ID', 'Suggested ID', 'Agreed', 'Matching points'];
+// One row per frog in a saved priming. The phone's clock time the frog's tank was opened, then seconds from there to each step
+// (negative when the photo was taken while another tank was open). Counts and "Earlier tanks" cover every tank opened since the previous frog.
+const TIMING_COLS = ['Time', 'User', 'Version', 'Animal ID', 'Tank', 'Tank opened', 'Photo (s)', 'Crop (s)', 'Match (s)', 'Picked (s)', 'Saved (s)',
+  'Photos taken', 'Back found automatically', 'Crop adjusted', 'Compare opens', 'Tank opens', 'Resting frogs tried', 'Match ms', 'Photo size', 'Device', 'Matcher load ms',
+  'Earlier tanks (s)'];
+const ULAM_COLS = ['Animal ID', 'System #', 'Arrival Date', 'Source', 'Collection Date', '# Collected (Laid)', 'Appearance (Laid)',
+  'After Ca2+ (Laid)', '# Collected (Squeezed)', 'Appearance (Squeezed)', 'After Ca2+ (Squeezed)', 'MMR H2O source', 'Notes',
+  'Fertilized', '% viable pre-injection', '% viable post-injection'];
+const CHECK_COLS = ['Source sheet', 'Row', 'Animal ID', 'Issue', 'Detail'];
+
+// How old spellings are read during the import. The original text is kept in "Original values".
+// A value that is not listed here is imported unchanged and listed in "Import check".
+const LEGACY_MAP = {
+  quantity: { 'many': 'Many', 'normal': 'Normal', 'few': 'Few', 'none': 'None', 'ok': 'Normal', '-': '' },
+  appearance: { 'great': 'Great', 'good': 'Good', 'not bad': 'Not bad', 'bad': 'Bad', 'none': 'None', 'ok': 'Not bad', '-': '' },
+  ca: { 'looking good': 'Looking good', 'turned to white': 'Turned to white', 'good': 'Looking good', '-': '' }
+};   // water: legacyWater in the settings
+
+/* ------------------------------------------------------------------ entry points */
+
+function doGet() {
+  const page = HtmlService.createHtmlOutputFromFile('Index')
+    .setTitle(setting_('appName'))
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1, viewport-fit=cover');
+  if (setting_('faviconUrl')) page.setFaviconUrl(setting_('faviconUrl'));
+  return page;
+}
+
+function onOpen() {
+  SpreadsheetApp.getUi().createMenu(setting_('appName'))
+    .addItem('1. Set up sheets', 'setup')
+    .addItem('2. Import legacy records', 'importLegacy')
+    .addItem('Import photos from Drive folder', 'importPhotos')
+    .addItem('Choose photo folder', 'choosePhotoFolder')
+    .addItem('Rebuild ULAM view', 'rebuildUlamView')
+    .addToUi();
+}
+
+/* ------------------------------------------------------------------ helpers */
+
+function ss_() { return SpreadsheetApp.getActiveSpreadsheet(); }
+function tz_() { return ss_().getSpreadsheetTimeZone(); }
+function iso_(d) { return Utilities.formatDate(d, tz_(), 'yyyy-MM-dd'); }
+function today_() { return iso_(new Date()); }
+function now_() { return Utilities.formatDate(new Date(), tz_(), 'yyyy-MM-dd HH:mm:ss'); }
+function d_(v) { return v instanceof Date ? iso_(v) : String(v == null ? '' : v).trim(); }
+function s_(v) { return String(v == null ? '' : v).trim(); }
+function pad_(n) { return (n < 10 ? '0' : '') + n; }
+
+function user_() {
+  const email = Session.getActiveUser().getEmail();
+  return email ? email.split('@')[0] : 'unknown';
+}
+
+function sheet_(name) {
+  const sh = ss_().getSheetByName(name);
+  if (!sh) throw new Error('Sheet "' + name + '" is missing. Open the spreadsheet and run ' + setting_('appName') + ' > Set up sheets.');
+  return sh;
+}
+
+function addMonths_(iso, n) {
+  const p = iso.split('-').map(Number);
+  const d = new Date(p[0], p[1] - 1 + n, p[2]);
+  return d.getFullYear() + '-' + pad_(d.getMonth() + 1) + '-' + pad_(d.getDate());
+}
+
+function withLock_(fn) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try { return fn(); } finally { lock.releaseLock(); }
+}
+
+function body_(sh, cols) {
+  const n = sh.getLastRow() - 1;
+  return n > 0 ? sh.getRange(2, 1, n, cols).getValues() : [];
+}
+
+function readFrogs_() {
+  return body_(sheet_(SHEETS.FROGS), FROG_COLS.length).map(function (r, i) {
+    return { row: i + 2, id: Number(r[0]), inColony: s_(r[1]) === 'In colony', tank: r[2] === '' ? '' : Number(r[2]),
+      arrival: d_(r[3]), source: s_(r[4]), notes: s_(r[5]), removedOn: d_(r[6]), removalReason: s_(r[9]) };
+  }).filter(function (f) { return f.id > 0; });
+}
+
+function readRecords_() {
+  return body_(sheet_(SHEETS.RECORDS), REC_COLS.length).map(function (r, i) {
+    return { row: i + 2, id: s_(r[0]), frog: Number(r[1]), priming: d_(r[2]), collection: d_(r[3]), name: s_(r[4]), water: s_(r[5]),
+      sqQty: s_(r[6]), sqApp: s_(r[7]), sqCa: s_(r[8]), laidQty: s_(r[9]), laidApp: s_(r[10]), laidCa: s_(r[11]),
+      comments: s_(r[12]), state: s_(r[13]), origin: s_(r[14]) };
+  }).filter(function (r) { return r.id !== ''; });
+}
+
+// One egg type in one cycle, 0 to 1. "None" for either answer means no usable eggs. null when nothing was recorded.
+function typeScore_(appearance, quantity) {
+  const Q = setting_('quality'), top = function (m) { return Math.max.apply(null, Object.keys(m).map(function (k) { return m[k]; })); };
+  const a = Q.appearance[appearance], q = Q.quantity[quantity];
+  if (a === undefined && q === undefined) return null;
+  if (a === 0 || q === 0) return 0;
+  if (a === undefined) return q / top(Q.quantity);
+  if (q === undefined) return a / top(Q.appearance);
+  return Q.appearanceWeight * a / top(Q.appearance) + (1 - Q.appearanceWeight) * q / top(Q.quantity);
+}
+
+// One cycle, 0 to 100, or null when it cannot be scored (not collected, or old free-text values).
+function cycleScore_(r) {
+  if (!r.collection || r.state === 'Cancelled' || r.state === 'Not used') return null;
+  const s = typeScore_(r.sqApp, r.sqQty), l = typeScore_(r.laidApp, r.laidQty);
+  if (s === null && l === null) return null;
+  const w = setting_('quality').squeezedWeight, v = s === null ? l : l === null ? s : w * s + (1 - w) * l;
+  return Math.round(v * 100);
+}
+
+// scored: [{date, score}] for one frog. Returns the summary shown in the Frogs tab.
+function quality_(scored) {
+  scored.sort(function (a, b) { return a.date < b.date ? 1 : -1; });
+  const Q = setting_('quality'), recent = scored.slice(0, Q.cycles).map(function (x) { return x.score; });
+  if (!recent.length) return { score: null, recent: [], cycles: 0, candidate: false, reason: '' };
+  const mean = Math.round(recent.reduce(function (t, x) { return t + x; }, 0) / recent.length);
+  let reason = '';
+  if (scored.length === 1 && mean <= Q.firstThreshold) reason = 'First cycle scored ' + mean;
+  else if (scored.length > 1 && mean < Q.threshold) reason = 'Last ' + recent.length + ' cycles average ' + mean;
+  return { score: mean, recent: recent, cycles: scored.length, candidate: reason !== '', reason: reason };
+}
+
+function isOpen_(r) { return r.state === 'In use' || r.state === 'Recorded'; }
+function publicRecord_(r) { const o = {}; Object.keys(r).forEach(function (k) { if (k !== 'row') o[k] = r[k]; }); return o; }
+
+// First four columns of every photo row; the image columns are read only when needed.
+function photoIndex_() {
+  return body_(sheet_(SHEETS.PHOTOS), 4).map(function (r, i) {
+    return { row: i + 2, photoId: s_(r[0]), frog: Number(r[1]), date: d_(r[2]), kind: s_(r[3]) };
+  }).filter(function (p) { return p.photoId !== '' && p.kind !== 'cancelled' && p.kind !== 'removed'; });
+}
+
+function photoCells_(row) {
+  const v = sheet_(SHEETS.PHOTOS).getRange(row, 5, 1, 5).getValues()[0];
+  return { fileId: s_(v[0]), thumb: s_(v[1]), pattern: s_(v[2]), emb: s_(v[3]), crop: s_(v[4]) };
+}
+
+function buildState_(withThumbs) {
+  const today = today_();
+  const last = {}, open = {}, scored = {};
+  readRecords_().forEach(function (r) {
+    if (r.state === 'Cancelled') return;                 // entered by mistake: does not count as a use
+    const cs = cycleScore_(r);
+    if (cs !== null) (scored[r.frog] = scored[r.frog] || []).push({ date: r.collection, score: cs });
+    const used = r.priming || r.collection;
+    if (used && used <= today && (!last[r.frog] || used > last[r.frog])) last[r.frog] = used;
+    if (isOpen_(r)) open[r.frog] = publicRecord_(r);
+  });
+  const count = {}, newest = {};
+  photoIndex_().forEach(function (p) { count[p.frog] = (count[p.frog] || 0) + 1; newest[p.frog] = p.row; });
+  const frogs = readFrogs_().map(function (f) {
+    const o = { id: f.id, inColony: f.inColony, tank: f.tank, arrival: f.arrival, source: f.source, notes: f.notes, removedOn: f.removedOn, removalReason: f.removalReason,
+      lastPriming: last[f.id] || '', restUntil: last[f.id] ? addMonths_(last[f.id], setting_('restMonths')) : '', open: open[f.id] || null,
+      photos: count[f.id] || 0, quality: quality_(scored[f.id] || []) };
+    if (withThumbs && f.inColony && newest[f.id]) o.thumb = photoCells_(newest[f.id]).thumb;
+    return o;
+  });
+  const Q = setting_('quality');
+  return { user: user_(), today: today, recordTiming: setting_('recordTiming'), restMonths: setting_('restMonths'), tankSize: setting_('tankSize'), appName: setting_('appName'),
+    options: setting_('options'), removalReasons: setting_('removalReasons'), frogs: frogs,
+    qualityRule: { squeezed: Math.round(Q.squeezedWeight * 100), cycles: Q.cycles, threshold: Q.threshold, firstThreshold: Q.firstThreshold } };
+}
+
+/* ------------------------------------------------------------------ photos */
+
+function folder_() {
+  const props = PropertiesService.getScriptProperties();
+  const id = props.getProperty('PHOTO_FOLDER_ID');
+  if (id) { try { return DriveApp.getFolderById(id); } catch (e) { /* folder was deleted: make a new one */ } }
+  const folder = DriveApp.createFolder(setting_('appName') + ' photos');
+  props.setProperty('PHOTO_FOLDER_ID', folder.getId());
+  return folder;
+}
+
+function fit_(text) { text = s_(text); return text.length > CELL_LIMIT ? '' : text; }
+
+function savePhoto_(frogId, photo, kind, user) {
+  const photoId = 'P' + Utilities.getUuid().slice(0, 8);
+  const today = today_();
+  const bytes = Utilities.base64Decode(String(photo.full).split(',')[1]);
+  const file = folder_().createFile(Utilities.newBlob(bytes, 'image/jpeg', 'frog-' + frogId + '_' + today + '_' + photoId + '.jpg'));
+  sheet_(SHEETS.PHOTOS).appendRow([photoId, frogId, today, kind, file.getId(), fit_(photo.thumb), fit_(photo.pattern), fit_(photo.emb),
+    s_(photo.crop), user, now_()]);
+  return photoId;
+}
+
+function getFullPhoto(photoId) {
+  const hit = photoIndex_().filter(function (p) { return p.photoId === photoId; })[0];
+  if (!hit) throw new Error('Photo not found.');
+  const blob = DriveApp.getFileById(photoCells_(hit.row).fileId).getBlob();
+  return 'data:' + (blob.getContentType() || 'image/jpeg') + ';base64,' + Utilities.base64Encode(blob.getBytes());
+}
+
+function photosOf_(index, frogId, limit, withEmb) {
+  const mine = index.filter(function (p) { return p.frog === frogId; });
+  return mine.slice(Math.max(0, mine.length - limit)).map(function (p) {
+    const c = photoCells_(p.row);
+    const o = { photoId: p.photoId, date: p.date, kind: p.kind, pattern: c.pattern, thumb: c.thumb, crop: c.crop, hasEmb: c.emb !== '' };
+    if (withEmb) o.emb = c.emb;
+    return o;
+  });
+}
+
+/** Newest photos of each listed frog, for the comparison screen and the pattern check. */
+function getTankPhotos(ids) {
+  const index = photoIndex_(), out = {};
+  (ids || []).forEach(function (id) { out[id] = photosOf_(index, Number(id), PHOTOS_PER_FROG, true); });
+  return out;
+}
+
+/** Thumbnail and back pattern that the page worked out for a photo that had none. (emb is unused now and stored empty.) */
+function savePhotoDerived(list) {
+  return withLock_(function () {
+    const index = photoIndex_(), sh = sheet_(SHEETS.PHOTOS);
+    (list || []).forEach(function (d) {
+      const hit = index.filter(function (p) { return p.photoId === d.photoId; })[0];
+      if (hit) sh.getRange(hit.row, 6, 1, 4).setValues([[fit_(d.thumb), fit_(d.pattern), fit_(d.emb), s_(d.crop)]]);
+    });
+    return true;
+  });
+}
+
+/**
+ * Takes a photo out of the app, for example one that turned out to show a different frog.
+ * The row and the Drive file stay; Kind becomes "removed", so it is no longer shown or compared.
+ */
+function removePhoto(frogId, photoId) {
+  return withLock_(function () {
+    const hit = photoIndex_().filter(function (p) { return p.photoId === photoId && p.frog === Number(frogId); })[0];
+    if (!hit) throw new Error('Photo not found. Reload the page and try again.');
+    sheet_(SHEETS.PHOTOS).getRange(hit.row, 4).setValue('removed');
+    return getFrogDetail(frogId);
+  });
+}
+
+function addPhoto(frogId, photo) {
+  return withLock_(function () {
+    savePhoto_(Number(frogId), photo, 'added', user_());
+    return getFrogDetail(frogId);
+  });
+}
+
+/* ------------------------------------------------------------------ page API */
+
+function getState() { return buildState_(false); }
+
+/** Newest thumbnail of each frog in the colony, read in one go. The page asks for this after it is on screen. */
+function getThumbs() {
+  const index = photoIndex_(), out = {};
+  if (!index.length) return out;
+  const sh = sheet_(SHEETS.PHOTOS), col = sh.getRange(2, 6, sh.getLastRow() - 1, 1).getValues();
+  const inColony = {};
+  readFrogs_().forEach(function (f) { if (f.inColony) inColony[f.id] = true; });
+  index.forEach(function (p) { const t = s_(col[p.row - 2][0]); if (t && inColony[p.frog]) out[p.frog] = t; });
+  return out;
+}
+
+function getFrogDetail(frogId) {
+  frogId = Number(frogId);
+  const records = readRecords_().filter(function (r) { return r.frog === frogId && r.state !== 'Cancelled'; })
+    .map(function (r) { const o = publicRecord_(r); o.score = cycleScore_(r); return o; });
+  records.sort(function (a, b) { return (b.priming || b.collection) < (a.priming || a.collection) ? -1 : 1; });
+  return { id: frogId, records: records, photos: photosOf_(photoIndex_(), frogId, 50, false) };
+}
+
+/** payload.items: [{ id, photo: {full, thumb, pattern, emb, crop} | null, match: {tank, best, scores} | null }] */
+function savePriming(payload) {
+  return withLock_(function () {
+    const user = user_(), today = today_(), stamp = now_();
+    const byId = {};
+    buildState_(false).frogs.forEach(function (f) { byId[f.id] = f; });
+    const items = (payload && payload.items) || [];
+    if (!items.length) throw new Error('No frogs were selected.');
+    const seen = {};
+    items.forEach(function (it) {
+      const f = byId[it.id];
+      if (!f || !f.inColony) throw new Error('#' + it.id + ' is not in the colony.');
+      if (seen[it.id]) throw new Error('#' + it.id + ' was selected twice.');
+      seen[it.id] = true;
+      if (f.open) throw new Error('#' + it.id + ' is already in use (primed ' + f.open.priming + ' by ' + f.open.name + ').');
+      if (f.restUntil > today) throw new Error('#' + it.id + ' is resting until ' + f.restUntil + '.');
+    });
+    const rows = items.map(function (it, i) {
+      const r = REC_COLS.map(function () { return ''; });
+      r[0] = 'R' + Date.now() + '-' + Utilities.getUuid().slice(0, 6) + i;   /* unique even within one millisecond */ r[1] = it.id; r[2] = today; r[4] = user; r[13] = 'In use'; r[14] = 'app';
+      r[16] = stamp; r[17] = stamp; r[18] = user;
+      return r;
+    });
+    const sh = sheet_(SHEETS.RECORDS);
+    sh.getRange(sh.getLastRow() + 1, 1, rows.length, REC_COLS.length).setValues(rows);
+    items.forEach(function (it) {
+      if (it.photo && it.photo.full) savePhoto_(it.id, it.photo, 'priming', user);
+      if (it.match) {
+        sheet_(SHEETS.MATCH).appendRow([stamp, user, it.match.tank, it.id, it.match.best, it.match.best ? (Number(it.match.best) === Number(it.id) ? 'yes' : 'no') : 'no suggestion',
+          JSON.stringify(it.match.scores || {})]);
+      }
+    });
+    saveTiming_(items, byId, payload.client || {}, stamp, user);
+    return buildState_(false);
+  });
+}
+
+// Measurements for the study of the app in use. A missing sheet is created here, so a priming never fails for want of it.
+function saveTiming_(items, byId, client, stamp, user) {
+  const timed = items.filter(function (it) { return it.timing; });
+  if (!setting_('recordTiming') || !timed.length) return;
+  const sh = ensureSheet_(SHEETS.TIMING, TIMING_COLS, [1, 2, 3, 6, 13, 14, 17, 19, 20]);   // also adds headings of columns added since
+  const num = function (v) { return v === '' || v == null || isNaN(Number(v)) ? '' : Number(v); };
+  const yes = function (v) { return v == null ? '' : (v ? 'yes' : 'no'); };
+  const rows = timed.map(function (it) {
+    const t = it.timing;
+    return [stamp, user, APP_VERSION, it.id, byId[it.id].tank, s_(t.opened).slice(0, 30), num(t.photo), num(t.crop), num(t.match), num(t.picked), num(t.saved),
+      num(t.photos), yes(t.found), yes(t.moved), num(t.compares), num(t.opens), s_(t.resting).slice(0, 200), num(t.matchMs), s_(t.size).slice(0, 20),
+      s_(client.device).slice(0, 300), num(client.matcherLoadMs), num(t.earlier)];
+  });
+  sh.getRange(sh.getLastRow() + 1, 1, rows.length, TIMING_COLS.length).setValues(rows);
+}
+
+function findRecord_(recordId) {
+  const rec = readRecords_().filter(function (r) { return r.id === recordId; })[0];
+  if (!rec) throw new Error('Record not found. Reload the page and try again.');
+  return rec;
+}
+
+function pick_(value, allowed) { value = s_(value); return allowed.indexOf(value) >= 0 ? value : ''; }
+
+function touch_(row) { sheet_(SHEETS.RECORDS).getRange(row, 18, 1, 2).setValues([[now_(), user_()]]); }
+
+function saveRecord(recordId, f) {
+  return withLock_(function () {
+    const rec = findRecord_(recordId);
+    if (!isOpen_(rec)) throw new Error('This frog has already been returned. Edit the record from its history instead.');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(s_(f.collection))) throw new Error('Enter the collection date.');
+    const O = setting_('options');
+    sheet_(SHEETS.RECORDS).getRange(rec.row, 4, 1, 11).setValues([[f.collection, user_(), pick_(f.water, O.water),
+      pick_(f.sqQty, O.quantity), pick_(f.sqApp, O.appearance), pick_(f.sqCa, O.ca),
+      pick_(f.laidQty, O.quantity), pick_(f.laidApp, O.appearance), pick_(f.laidCa, O.ca),
+      s_(f.comments), 'Recorded']]);
+    touch_(rec.row);
+    rebuildUlam_();
+    return buildState_(false);
+  });
+}
+
+/** After Ca activation and comments stay editable, also after the frog went back to its tank. */
+function updateRecord(recordId, f) {
+  return withLock_(function () {
+    const rec = findRecord_(recordId), sh = sheet_(SHEETS.RECORDS);
+    const ca = setting_('options').ca;
+    sh.getRange(rec.row, 9).setValue(pick_(f.sqCa, ca));
+    sh.getRange(rec.row, 12, 1, 2).setValues([[pick_(f.laidCa, ca), s_(f.comments)]]);
+    touch_(rec.row);
+    rebuildUlam_();
+    return buildState_(false);
+  });
+}
+
+function returnFrog(recordId) {
+  return withLock_(function () {
+    const rec = findRecord_(recordId);
+    if (!isOpen_(rec)) throw new Error('This frog has already been returned.');
+    sheet_(SHEETS.RECORDS).getRange(rec.row, 14).setValue(rec.state === 'Recorded' ? 'Returned' : 'Not used');
+    touch_(rec.row);
+    return buildState_(false);
+  });
+}
+
+/**
+ * Undo for a priming saved by mistake (wrong frog, or the frog was not injected after all).
+ * Only before an egg record exists. The row stays in Records as "Cancelled" so there is a trace;
+ * the photo taken with that priming is hidden, because it may show a different frog.
+ */
+function cancelPriming(recordId) {
+  return withLock_(function () {
+    const rec = findRecord_(recordId);
+    if (rec.state !== 'In use') throw new Error('Only a priming without an egg record can be cancelled. Edit the Records sheet for anything else.');
+    sheet_(SHEETS.RECORDS).getRange(rec.row, 14).setValue('Cancelled');
+    touch_(rec.row);
+    const photos = sheet_(SHEETS.PHOTOS);
+    photoIndex_().forEach(function (p) {
+      if (p.frog === rec.frog && p.kind === 'priming' && p.date === rec.priming) photos.getRange(p.row, 4).setValue('cancelled');
+    });
+    return buildState_(false);
+  });
+}
+
+function addFrog(f) {
+  return withLock_(function () {
+    const frogs = readFrogs_();
+    const id = frogs.reduce(function (m, x) { return Math.max(m, x.id); }, 0) + 1;
+    const tank = Number(f.tank);
+    if (!(tank > 0)) throw new Error('Choose a tank.');
+    if (frogs.filter(function (x) { return x.inColony && x.tank === tank; }).length >= setting_('tankSize')) throw new Error('Tank ' + tank + ' is full.');
+    sheet_(SHEETS.FROGS).appendRow([id, 'In colony', tank, s_(f.arrival), s_(f.source), s_(f.notes), '', now_(), user_()]);
+    if (f.photo && f.photo.full) savePhoto_(id, f.photo, 'registration', user_());
+    const state = buildState_(false);
+    state.newId = id;
+    return state;
+  });
+}
+
+/** reason: one of the removalReasons setting. note: optional free text, added to the frog's Notes. */
+function removeFrog(frogId, reason, note) {
+  return withLock_(function () {
+    frogId = Number(frogId);
+    reason = pick_(reason, setting_('removalReasons'));
+    if (!reason) throw new Error('Choose why the frog is being removed.');
+    const f = readFrogs_().filter(function (x) { return x.id === frogId; })[0];
+    if (!f) throw new Error('Frog not found.');
+    if (readRecords_().some(function (r) { return r.frog === frogId && isOpen_(r); })) throw new Error('#' + frogId + ' is in use. Return it first.');
+    const sh = sheet_(SHEETS.FROGS);
+    sh.getRange(f.row, 2, 1, 2).setValues([['Removed', '']]);
+    if (s_(note)) sh.getRange(f.row, 6).setValue(f.notes ? f.notes + '; ' + s_(note) : s_(note));
+    sh.getRange(f.row, 7, 1, 4).setValues([[today_(), now_(), user_(), reason]]);
+    return buildState_(false);
+  });
+}
+
+/** Tank exchange: frogs in the colony, in ID order, tankSize (setting) per tank starting at Tank 1. */
+function applyExchange() {
+  return withLock_(function () {
+    const sh = sheet_(SHEETS.FROGS), stamp = now_(), user = user_();
+    readFrogs_().filter(function (f) { return f.inColony; }).sort(function (a, b) { return a.id - b.id; }).forEach(function (f, i) {
+      const tank = Math.floor(i / setting_('tankSize')) + 1;
+      if (tank !== f.tank) { sh.getRange(f.row, 3).setValue(tank); sh.getRange(f.row, 8, 1, 2).setValues([[stamp, user]]); }
+    });
+    rebuildUlam_();
+    return buildState_(false);
+  });
+}
+
+/* ------------------------------------------------------------------ ULAM view */
+
+function rebuildUlamView() { rebuildUlam_(); }
+
+// Same columns as "Shared with ULAM", rebuilt from Records whenever a record changes.
+function rebuildUlam_() {
+  const frogs = {};
+  readFrogs_().forEach(function (f) { frogs[f.id] = f; });
+  const rows = readRecords_().filter(function (r) { return r.collection; }).sort(function (a, b) {
+    return a.collection < b.collection ? -1 : a.collection > b.collection ? 1 : a.frog - b.frog;
+  }).map(function (r) {
+    const f = frogs[r.frog] || {};
+    return [r.frog, f.tank || '', f.arrival || '', f.source || '', r.collection, r.laidQty, r.laidApp, r.laidCa, r.sqQty, r.sqApp, r.sqCa,
+      r.water, r.comments, '', '', ''];
+  });
+  const sh = sheet_(SHEETS.ULAM);
+  if (sh.getLastRow() > 1) sh.getRange(2, 1, sh.getLastRow() - 1, ULAM_COLS.length).clearContent();
+  if (rows.length) sh.getRange(2, 1, rows.length, ULAM_COLS.length).setValues(rows);
+}
+
+/* ------------------------------------------------------------------ setup and import (run from the spreadsheet menu) */
+
+function ensureSheet_(name, cols, textCols) {
+  const ss = ss_();
+  let sh = ss.getSheetByName(name);
+  if (!sh) sh = ss.insertSheet(name);
+  if (sh.getLastRow() === 0) {
+    sh.getRange(1, 1, 1, cols.length).setValues([cols]);
+    sh.setFrozenRows(1);
+    // Plain text keeps dates as yyyy-mm-dd and stops Sheets from reinterpreting IDs and image data.
+    (textCols || []).forEach(function (c) { sh.getRange(1, c, sh.getMaxRows(), 1).setNumberFormat('@'); });
+  } else {
+    // A sheet made by an earlier version: add the headings of columns that were introduced since.
+    const have = sh.getRange(1, 1, 1, cols.length).getValues()[0];
+    cols.forEach(function (c, i) { if (s_(have[i]) === '') sh.getRange(1, i + 1).setValue(c); });
+  }
+  return sh;
+}
+
+function setup() {
+  const frogs = ensureSheet_(SHEETS.FROGS, FROG_COLS, [4, 5, 6, 7, 8, 9, 10]);
+  ensureSheet_(SHEETS.RECORDS, REC_COLS, [1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]);
+  ensureSheet_(SHEETS.PHOTOS, PHOTO_COLS, [1, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+  ensureSheet_(SHEETS.MATCH, MATCH_COLS, [1, 2, 7]);
+  if (setting_('recordTiming')) ensureSheet_(SHEETS.TIMING, TIMING_COLS, [1, 2, 3, 6, 13, 14, 17, 19, 20]);
+  ensureSheet_(SHEETS.ULAM, ULAM_COLS, [3, 4, 5, 13]);
+  ensureSheet_(SHEETS.CHECK, CHECK_COLS, [5]);
+  if (frogs.getLastRow() === 1 && typeof ROSTER !== 'undefined') {
+    const stamp = now_();
+    const rows = ROSTER.map(function (r) { return [r[0], r[1] ? 'In colony' : 'Removed', r[1] ? r[2] : '', r[3], r[4], r[5], '', stamp, 'setup', '']; });
+    frogs.getRange(2, 1, rows.length, FROG_COLS.length).setValues(rows);
+  }
+  folder_();
+}
+
+function legacyDate_(text) {
+  const m = s_(text).match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+  if (!m) return '';
+  let y = Number(m[3]);
+  if (y < 100) y += 2000;
+  const iso = y + '-' + pad_(Number(m[1])) + '-' + pad_(Number(m[2]));
+  return (y < 2015 || iso > today_()) ? '' : iso;
+}
+
+function legacyValue_(kind, raw, note) {
+  raw = s_(raw);
+  if (raw === '') return '';
+  const key = raw.toLowerCase(), map = kind === 'water' ? setting_('legacyWater') : LEGACY_MAP[kind];
+  if (!(key in map)) { note('Value not in the current choices, kept as written', kind + ': "' + raw + '"'); return raw; }
+  // Reinterpretations are listed for review; completing a short water-source name or dropping a "-" placeholder is not one.
+  if (kind !== 'water' && map[key] !== '' && map[key].toLowerCase() !== key) note('Old spelling read as a current choice', kind + ': "' + raw + '" -> "' + map[key] + '"');
+  return map[key];
+}
+
+/**
+ * One-time import of "Form Responses 1" and of the rows in "Shared with ULAM" that the form
+ * does not have. Refuses to run twice. Problems are listed in "Import check".
+ */
+function importLegacy() {
+  const ss = ss_(), out = sheet_(SHEETS.RECORDS);
+  if (readRecords_().some(function (r) { return r.origin === 'form' || r.origin === 'ulam'; })) {
+    throw new Error('Legacy records were already imported. Delete the rows with Origin "form" or "ulam" in Records to import again.');
+  }
+  const issues = [], rows = [], keys = {}, stamp = now_();
+
+  function add(source, rowNo, id, f, raw, origin) {
+    const note = function (issue, detail) { issues.push([source, rowNo, id, issue, detail]); };
+    const collection = legacyDate_(f.collection), priming = legacyDate_(f.priming);
+    if (!/^\d+$/.test(id)) { note('No Animal ID, row skipped', ''); return; }
+    if (s_(f.collection) && !collection) note('Collection date unreadable or in the future, left blank', s_(f.collection));
+    if (s_(f.priming) && !priming) note('Priming date unreadable or in the future, left blank', s_(f.priming));
+    if (priming && collection && (collection < priming || collection > addMonths_(priming, 1))) note('Priming and collection dates are far apart', priming + ' / ' + collection);
+    const key = id + '|' + collection;
+    if (keys[key]) note('Same frog and collection date as another row', key);
+    keys[key] = true;
+    const r = REC_COLS.map(function () { return ''; });
+    r[0] = 'L' + ('000' + (rows.length + 1)).slice(-4); r[1] = Number(id); r[2] = priming; r[3] = collection; r[4] = s_(f.name);
+    r[5] = legacyValue_('water', f.water, note);
+    r[6] = legacyValue_('quantity', f.sqQty, note); r[7] = legacyValue_('appearance', f.sqApp, note); r[8] = legacyValue_('ca', f.sqCa, note);
+    r[9] = legacyValue_('quantity', f.laidQty, note); r[10] = legacyValue_('appearance', f.laidApp, note); r[11] = legacyValue_('ca', f.laidCa, note);
+    r[12] = s_(f.comments); r[13] = 'Legacy'; r[14] = origin; r[15] = JSON.stringify(raw); r[16] = stamp; r[17] = stamp; r[18] = 'import';
+    rows.push(r);
+  }
+
+  const form = ss.getSheetByName(LEGACY.FORM);
+  if (!form) throw new Error('Sheet "' + LEGACY.FORM + '" was not found.');
+  const fv = form.getDataRange().getDisplayValues(), head = fv[0].map(s_);
+  const col = function (name) { const i = head.indexOf(name); if (i < 0) throw new Error('Column "' + name + '" was not found in ' + LEGACY.FORM + '.'); return i; };
+  const c = { id: col('Animal ID'), name: col('Name'), collection: col('Collection Date'), priming: col('Priming Date'), water: col('MMR H2O source'),
+    sqQty: col('Quantity (Squeezed Eggs)'), sqApp: col('Appearance (Squeezed Eggs)'), sqCa: col('After Ca activation (Squeezed Eggs)'),
+    laidQty: col('Quantity (Laid Eggs)'), laidApp: col('Appearance (Laid Eggs)'), laidCa: col('After Ca activation (Laid Eggs)'), comments: col('Comments') };
+  for (let i = 1; i < fv.length; i++) {
+    const v = fv[i];
+    if (!v.some(function (x) { return s_(x) !== ''; })) continue;
+    const f = {};
+    Object.keys(c).forEach(function (k) { f[k] = v[c[k]]; });
+    add(LEGACY.FORM, i + 1, s_(f.id), f, f, 'form');
+  }
+
+  const ulam = ss.getSheetByName(LEGACY.ULAM);
+  if (ulam) {
+    const uv = ulam.getDataRange().getDisplayValues();
+    for (let i = 1; i < uv.length; i++) {
+      const v = uv[i], id = s_(v[0]);
+      if (!id) continue;
+      const collection = legacyDate_(v[4]);
+      if (collection && keys[id + '|' + collection]) continue;      // the form already has this record
+      const f = { collection: v[4], priming: '', name: '', laidQty: v[5], laidApp: v[6], laidCa: v[7], sqQty: v[8], sqApp: v[9], sqCa: v[10], water: v[11], comments: v[12] };
+      if (collection >= '2025-01-01') issues.push([LEGACY.ULAM, i + 1, id, 'Not in Form Responses although the form was in use (possible date typo)', collection]);
+      add(LEGACY.ULAM, i + 1, id, f, f, 'ulam');
+    }
+  }
+
+  rows.sort(function (a, b) { return a[3] < b[3] ? -1 : a[3] > b[3] ? 1 : a[1] - b[1]; });
+  if (rows.length) out.getRange(out.getLastRow() + 1, 1, rows.length, REC_COLS.length).setValues(rows);
+  const check = sheet_(SHEETS.CHECK);
+  if (check.getLastRow() > 1) check.getRange(2, 1, check.getLastRow() - 1, CHECK_COLS.length).clearContent();
+  if (issues.length) check.getRange(2, 1, issues.length, CHECK_COLS.length).setValues(issues);
+  rebuildUlam_();
+}
+
+/**
+ * Registers existing photos. Put image files named after the frog ("125.jpg", "125 back.png")
+ * in the "import" folder inside "XenoLog photos", then run this from the menu.
+ * The page crops them and works out the thumbnail the first time each one is shown.
+ */
+function importPhotos() {
+  const folder = folder_();
+  const sub = folder.getFoldersByName('import');
+  const src = sub.hasNext() ? sub.next() : folder.createFolder('import');
+  const known = {};
+  body_(sheet_(SHEETS.PHOTOS), 5).forEach(function (r) { known[s_(r[4])] = true; });
+  const frogIds = {};
+  readFrogs_().forEach(function (f) { frogIds[f.id] = true; });
+  const rows = [], stamp = now_();
+  const n = { seen: 0, already: 0, noId: [], notImage: [] };
+  (function walk(dir) {                       // also looks inside folders placed in "import"
+    const files = dir.getFiles();
+    while (files.hasNext()) {
+      const file = files.next(), name = file.getName(), m = name.match(/^\s*#?(\d+)/);
+      n.seen++;
+      if (known[file.getId()]) { n.already++; continue; }
+      if (file.getMimeType().indexOf('image/') !== 0) { n.notImage.push(name); continue; }
+      if (!m || !frogIds[Number(m[1])]) { n.noId.push(name); continue; }
+      rows.push(['P' + Utilities.getUuid().slice(0, 8), Number(m[1]), iso_(file.getDateCreated()), 'registration', file.getId(), '', '', '', '', 'import', stamp]);
+    }
+    const dirs = dir.getFolders();
+    while (dirs.hasNext()) walk(dirs.next());
+  })(src);
+  rows.sort(function (a, b) { return a[1] - b[1]; });
+  const sh = sheet_(SHEETS.PHOTOS);
+  if (rows.length) sh.getRange(sh.getLastRow() + 1, 1, rows.length, PHOTO_COLS.length).setValues(rows);
+  const few = function (list) { return list.slice(0, 8).join(', ') + (list.length > 8 ? ', ...' : ''); };
+  say_('Import photos',
+    'Folder searched:\n' + src.getUrl() + '\n\n' +
+    'Files found: ' + n.seen + '\nNewly registered: ' + rows.length + '\nAlready registered: ' + n.already +
+    (n.noId.length ? '\nName does not start with an ID in the Frogs sheet: ' + n.noId.length + ' (' + few(n.noId) + ')' : '') +
+    (n.notImage.length ? '\nNot an image: ' + n.notImage.length + ' (' + few(n.notImage) + ')' : '') +
+    (n.seen === 0 ? '\n\nThe folder above is empty. If your photos are in another folder, move them into this one, or run "Choose photo folder" and paste the link of the folder that contains your "import" folder.' : ''));
+}
+
+/** Points the app at a photo folder you made yourself (the one that contains "import"). */
+function choosePhotoFolder() {
+  const ui = SpreadsheetApp.getUi();
+  const current = folder_();
+  const res = ui.prompt('Choose photo folder', 'Current folder:\n' + current.getUrl() + '\n\nTo use another folder, paste its Google Drive link here. Leave empty to keep the current one.', ui.ButtonSet.OK_CANCEL);
+  if (res.getSelectedButton() !== ui.Button.OK || !s_(res.getResponseText())) return;
+  const m = s_(res.getResponseText()).match(/[-\w]{25,}/);
+  if (!m) { ui.alert('That does not look like a Google Drive folder link.'); return; }
+  let picked;
+  try { picked = DriveApp.getFolderById(m[0]); } catch (e) { ui.alert('That folder could not be opened. Check that it is a folder link and that you have access.'); return; }
+  PropertiesService.getScriptProperties().setProperty('PHOTO_FOLDER_ID', picked.getId());
+  ui.alert('New photos will be saved in "' + picked.getName() + '". Photos already registered stay where they are.');
+}
+
+function say_(title, text) {
+  try { SpreadsheetApp.getUi().alert(title, text, SpreadsheetApp.getUi().ButtonSet.OK); }
+  catch (e) { ss_().toast(text, title, 10); }
+}
+</script>
+<script>
+document.body.insertBefore(document.getElementById('demo-bar'), document.body.firstChild);
+FAKE.user = 'demo@example.org';
+setup(); demoSeed();
+(function () {
+  function make(ok, fail) {
+    return new Proxy({}, { get: function (_, name) {
+      if (name === 'withSuccessHandler') return function (f) { return make(f, fail); };
+      if (name === 'withFailureHandler') return function (f) { return make(ok, f); };
+      return function () {
+        var args = JSON.parse(JSON.stringify(Array.prototype.slice.call(arguments)));
+        setTimeout(function () {
+          var res;
+          try { res = window[name].apply(null, args); } catch (e) { if (fail) fail(e); return; }
+          if (ok) ok(res === undefined ? null : JSON.parse(JSON.stringify(res)));
+        }, 60);
+      };
+    } });
+  }
+  window.google = { script: { run: make() } };
+})();
+</script>
+<script>
+/* Photo handling in the browser: resize, find the frog's back, and compare two back patterns by
+   counting points that line up. Everything here fails soft: if the back cannot be found the centre
+   of the photo is used, and if OpenCV cannot load the app works without a suggestion. */
+var Matcher = (function () {
+  var CV_URL = 'https://cdn.jsdelivr.net/npm/@techstark/opencv-js@4.12.0-release.1/dist/opencv.js';
+  var FULL = 1280, PATTERN = 256, THUMB = 128, WORK = 200;
+  var MATCH_SIDE = 384, MATCH_POINTS = 800, RATIO = 0.8;   // back image is enlarged to this size; ORB keeps this many points
+  var loading = null, status = 'idle', onStatus = function () {}, loadMs = null;
+
+  function setStatus(s) { status = s; try { onStatus(s); } catch (e) {} }
+
+  /** Loads OpenCV once. Resolves to true when matching can be used. */
+  function load() {
+    if (loading) return loading;
+    setStatus('loading');
+    var started = Date.now();
+    loading = new Promise(function (ok) {
+      var s = document.createElement('script'), timer = setTimeout(function () { ok(false); }, 90000);
+      s.src = CV_URL; s.async = true;
+      s.onerror = function () { clearTimeout(timer); ok(false); };
+      s.onload = function () {
+        var c = window.cv;
+        // The OpenCV module object has its own .then. Awaiting it, or resolving a promise with it, never finishes
+        // and freezes the page, so it is only ever used through the global and .then is removed.
+        function done() { clearTimeout(timer); try { delete c.then; } catch (e) {} ok(typeof c.ORB === 'function' && typeof c.BFMatcher === 'function'); }
+        if (!c) { clearTimeout(timer); ok(false); } else if (c.Mat) done(); else c.onRuntimeInitialized = done;
+      };
+      document.head.appendChild(s);
+    }).then(function (good) { loadMs = Date.now() - started; setStatus(good ? 'ready' : 'unavailable'); return good; });
+    return loading;
+  }
+
+  function readFile(file) {
+    return new Promise(function (ok, fail) { var r = new FileReader(); r.onload = function () { ok(r.result); }; r.onerror = fail; r.readAsDataURL(file); });
+  }
+  function loadImage(src) {
+    return new Promise(function (ok, fail) { var im = new Image(); im.onload = function () { ok(im); }; im.onerror = function () { fail(new Error('The photo could not be read.')); }; im.src = src; });
+  }
+  function canvasOf(w, h) { var c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
+  function scaled(img, maxSide) {
+    var k = Math.min(1, maxSide / Math.max(img.width, img.height));
+    var c = canvasOf(Math.round(img.width * k), Math.round(img.height * k));
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    return c;
+  }
+
+  /* ---- binary image helpers on Uint8Array masks of size w*h ---- */
+  function morph(m, w, h, grow) {           // one step with a plus-shaped neighbourhood
+    var o = new Uint8Array(m.length), x, y, i, v;
+    for (y = 0; y < h; y++) for (x = 0; x < w; x++) {
+      i = y * w + x;
+      if (grow) v = m[i] || (x > 0 && m[i - 1]) || (x < w - 1 && m[i + 1]) || (y > 0 && m[i - w]) || (y < h - 1 && m[i + w]);
+      else v = m[i] && x > 0 && m[i - 1] && x < w - 1 && m[i + 1] && y > 0 && m[i - w] && y < h - 1 && m[i + w];
+      o[i] = v ? 1 : 0;
+    }
+    return o;
+  }
+  function repeat(m, w, h, grow, n) { for (var i = 0; i < n; i++) m = morph(m, w, h, grow); return m; }
+  function largest(m, w, h) {               // keep the biggest connected blob
+    var lab = new Int32Array(m.length), best = 0, bestN = 0, cur = 0, stack = [], i, j, n, x, y;
+    for (i = 0; i < m.length; i++) {
+      if (!m[i] || lab[i]) continue;
+      cur++; n = 0; stack.push(i); lab[i] = cur;
+      while (stack.length) {
+        j = stack.pop(); n++; x = j % w; y = (j - x) / w;
+        if (x > 0 && m[j - 1] && !lab[j - 1]) { lab[j - 1] = cur; stack.push(j - 1); }
+        if (x < w - 1 && m[j + 1] && !lab[j + 1]) { lab[j + 1] = cur; stack.push(j + 1); }
+        if (y > 0 && m[j - w] && !lab[j - w]) { lab[j - w] = cur; stack.push(j - w); }
+        if (y < h - 1 && m[j + w] && !lab[j + w]) { lab[j + w] = cur; stack.push(j + w); }
+      }
+      if (n > bestN) { bestN = n; best = cur; }
+    }
+    var o = new Uint8Array(m.length);
+    if (best) for (i = 0; i < m.length; i++) o[i] = lab[i] === best ? 1 : 0;
+    return { mask: o, area: bestN };
+  }
+  function fillHoles(m, w, h) {             // background reachable from the border stays background
+    var seen = new Uint8Array(m.length), stack = [], i, j, x, y;
+    function push(k) { if (!m[k] && !seen[k]) { seen[k] = 1; stack.push(k); } }
+    for (x = 0; x < w; x++) { push(x); push((h - 1) * w + x); }
+    for (y = 0; y < h; y++) { push(y * w); push(y * w + w - 1); }
+    while (stack.length) {
+      j = stack.pop(); x = j % w; y = (j - x) / w;
+      if (x > 0) push(j - 1); if (x < w - 1) push(j + 1); if (y > 0) push(j - w); if (y < h - 1) push(j + w);
+    }
+    var o = new Uint8Array(m.length);
+    for (i = 0; i < m.length; i++) o[i] = seen[i] ? 0 : 1;
+    return o;
+  }
+  function distance(m, w, h, edge) {              // distance (in pixels) from each pixel to the nearest 0, chamfer 3-4
+    var INF = 1e9, d = new Float32Array(m.length), x, y, i;
+    for (i = 0; i < m.length; i++) d[i] = m[i] ? INF : 0;
+    for (y = 0; y < h; y++) for (x = 0; x < w; x++) {
+      i = y * w + x; if (!d[i]) continue;
+      if (edge && (x === 0 || y === 0 || x === w - 1 || y === h - 1)) d[i] = Math.min(d[i], 3);
+      if (x > 0) d[i] = Math.min(d[i], d[i - 1] + 3);
+      if (y > 0) { d[i] = Math.min(d[i], d[i - w] + 3); if (x > 0) d[i] = Math.min(d[i], d[i - w - 1] + 4); if (x < w - 1) d[i] = Math.min(d[i], d[i - w + 1] + 4); }
+    }
+    for (y = h - 1; y >= 0; y--) for (x = w - 1; x >= 0; x--) {
+      i = y * w + x; if (!d[i]) continue;
+      if (x < w - 1) d[i] = Math.min(d[i], d[i + 1] + 3);
+      if (y < h - 1) { d[i] = Math.min(d[i], d[i + w] + 3); if (x < w - 1) d[i] = Math.min(d[i], d[i + w + 1] + 4); if (x > 0) d[i] = Math.min(d[i], d[i + w - 1] + 4); }
+    }
+    for (i = 0; i < d.length; i++) d[i] /= 3;
+    return d;
+  }
+
+  /* Two ways to mark "frog" pixels on a small copy of the photo.
+     colour:  yellow-olive skin (green clearly above blue). Works on grey backgrounds, misses dark frogs.
+     salient: pixels that differ from the photo's typical colour or sit in a busy, blotchy area.
+              Works when the background is plain (white paper), whatever the frog's colour. */
+  function maskColour(px, n) {
+    var m = new Uint8Array(n), i, r, g, b, mx, mn;
+    for (i = 0; i < n; i++) {
+      r = px[i * 4]; g = px[i * 4 + 1]; b = px[i * 4 + 2]; mx = Math.max(r, g, b); mn = Math.min(r, g, b);
+      m[i] = (g - b > 15 && r > b && mx > 0 && (mx - mn) / mx > 0.18) ? 1 : 0;
+    }
+    return m;
+  }
+  function median(a) { var s = Array.prototype.slice.call(a).sort(function (p, q) { return p - q; }); return s[s.length >> 1]; }
+  function scaleTo98(a) {
+    var s = Array.prototype.slice.call(a).sort(function (p, q) { return p - q; }), hi = s[Math.floor(s.length * 0.98)] || 1, o = new Float32Array(a.length), i;
+    for (i = 0; i < a.length; i++) o[i] = Math.min(1, a[i] / hi);
+    return o;
+  }
+  function maskSalient(px, w, h) {
+    var n = w * h, R = new Float32Array(n), G = new Float32Array(n), B = new Float32Array(n), L = new Float32Array(n), i, x, y;
+    for (i = 0; i < n; i++) { R[i] = px[i * 4]; G[i] = px[i * 4 + 1]; B[i] = px[i * 4 + 2]; L[i] = 0.3 * R[i] + 0.59 * G[i] + 0.11 * B[i]; }
+    var mr = median(R), mg = median(G), mb = median(B), diff = new Float32Array(n);
+    for (i = 0; i < n; i++) diff[i] = Math.sqrt((R[i] - mr) * (R[i] - mr) + (G[i] - mg) * (G[i] - mg) + (B[i] - mb) * (B[i] - mb));
+    // local contrast: standard deviation of brightness in an 11x11 window, from summed-area tables
+    var W1 = w + 1, I = new Float64Array(W1 * (h + 1)), I2 = new Float64Array(W1 * (h + 1)), s, s2, v, rad = 5, sd = new Float32Array(n);
+    for (y = 0; y < h; y++) { s = 0; s2 = 0; for (x = 0; x < w; x++) { v = L[y * w + x]; s += v; s2 += v * v; I[(y + 1) * W1 + x + 1] = I[y * W1 + x + 1] + s; I2[(y + 1) * W1 + x + 1] = I2[y * W1 + x + 1] + s2; } }
+    for (y = 0; y < h; y++) for (x = 0; x < w; x++) {
+      var x0 = Math.max(0, x - rad), x1 = Math.min(w, x + rad + 1), y0 = Math.max(0, y - rad), y1 = Math.min(h, y + rad + 1), c = (x1 - x0) * (y1 - y0);
+      s = I[y1 * W1 + x1] - I[y0 * W1 + x1] - I[y1 * W1 + x0] + I[y0 * W1 + x0];
+      s2 = I2[y1 * W1 + x1] - I2[y0 * W1 + x1] - I2[y1 * W1 + x0] + I2[y0 * W1 + x0];
+      sd[y * w + x] = Math.sqrt(Math.max(0, s2 / c - (s / c) * (s / c)));
+    }
+    var nd = scaleTo98(diff), ns = scaleTo98(sd), f = new Float32Array(n), hist = [], t;
+    for (t = 0; t < 64; t++) hist.push(0);
+    for (i = 0; i < n; i++) { f[i] = 0.5 * nd[i] + 0.5 * ns[i]; hist[Math.min(63, Math.floor(f[i] * 64))]++; }
+    var sum = 0, sB = 0, wB = 0, best = 0, thr = 0, wF, d;        // Otsu's threshold on the combined score
+    for (t = 0; t < 64; t++) sum += t * hist[t];
+    for (t = 0; t < 64; t++) { wB += hist[t]; if (!wB) continue; wF = n - wB; if (!wF) break; sB += t * hist[t]; d = sB / wB - (sum - sB) / wF; v = wB * wF * d * d; if (v > best) { best = v; thr = t; } }
+    var m = new Uint8Array(n);
+    for (i = 0; i < n; i++) m[i] = f[i] * 64 > thr ? 1 : 0;
+    return m;
+  }
+
+  /* From a pixel mask: take the biggest blob, then remove everything thinner than the trunk (legs, container edges). */
+  function trunk(m, w, h, k) {
+    var i;
+    m = repeat(repeat(m, w, h, true, 2), w, h, false, 2);       // close small gaps
+    m = repeat(repeat(m, w, h, false, 1), w, h, true, 1);       // drop specks
+    var body = largest(m, w, h);
+    if (body.area < 0.03 * w * h || body.area > 0.75 * w * h) return null;
+    var filled = fillHoles(body.mask, w, h), rad = Math.sqrt(body.area) * 0.22;
+    var inside = distance(filled, w, h, true), core = new Uint8Array(w * h), inv = new Uint8Array(w * h);
+    for (i = 0; i < core.length; i++) core[i] = inside[i] > rad ? 1 : 0;
+    core = largest(core, w, h).mask;
+    for (i = 0; i < inv.length; i++) inv[i] = core[i] ? 0 : 1;
+    var near = distance(inv, w, h, false), x0 = w, y0 = h, x1 = -1, y1 = -1, x, y, n = 0;
+    for (y = 0; y < h; y++) for (x = 0; x < w; x++) {
+      if (!core[y * w + x] && near[y * w + x] > rad) continue;   // opening = core grown back by the same radius
+      if (!filled[y * w + x]) continue;
+      n++; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+    }
+    if (!n || x1 - x0 < 0.1 * w || y1 - y0 < 0.1 * w) return null;
+    return { x: x0 / k, y: y0 / k, w: (x1 - x0 + 1) / k, h: (y1 - y0 + 1) / k, fill: n / ((x1 - x0 + 1) * (y1 - y0 + 1)) };
+  }
+  // How frog-like a detected box is: a solid blob of plausible size near the middle of the photo.
+  function plausible(box, cw, ch) {
+    if (!box) return -1;
+    var frac = box.w * box.h / (cw * ch), size = frac < 0.06 ? frac / 0.06 : (frac > 0.45 ? 0.45 / frac : 1);
+    var dx = (box.x + box.w / 2) / cw - 0.5, dy = (box.y + box.h / 2) / ch - 0.5;
+    return box.fill * size * (1 - Math.min(1, Math.sqrt(dx * dx + dy * dy) / 0.5) * 0.5);
+  }
+  /* Tries both methods and keeps the more plausible box. Returns null when neither is convincing,
+     for example when the frog fills the whole photo; the caller then uses the centre. */
+  function findBack(canvas, method) {
+    var k = WORK / canvas.width, w = WORK, h = Math.max(1, Math.round(canvas.height * k));
+    var small = canvasOf(w, h); small.getContext('2d').drawImage(canvas, 0, 0, w, h);
+    var px = small.getContext('2d').getImageData(0, 0, w, h).data;
+    var a = method === 'salient' ? null : trunk(maskColour(px, w * h), w, h, k);
+    var b = method === 'colour' ? null : trunk(maskSalient(px, w, h), w, h, k);
+    if (method) return a || b;
+    var sa = plausible(a, canvas.width, canvas.height), sb = plausible(b, canvas.width, canvas.height);
+    return Math.max(sa, sb) < 0.5 ? null : (sb >= sa ? b : a);
+  }
+
+  function squareOf(canvas, box) {             // the square the crop uses, in photo pixels
+    var side = Math.min(Math.max(box.w, box.h) * 1.04, canvas.width, canvas.height);
+    return { x: Math.min(Math.max(0, box.x + box.w / 2 - side / 2), canvas.width - side),
+      y: Math.min(Math.max(0, box.y + box.h / 2 - side / 2), canvas.height - side), side: side };
+  }
+  function cut(canvas, sq, size) {
+    var c = canvasOf(size, size);
+    c.getContext('2d').drawImage(canvas, sq.x, sq.y, sq.side, sq.side, 0, 0, size, size);
+    return c;
+  }
+  function cuts(canvas, sq) { return { pattern: jpeg(cut(canvas, sq, PATTERN), 0.8, 40000), thumb: jpeg(cut(canvas, sq, THUMB), 0.7, 20000) }; }
+  function jpeg(canvas, q, maxChars) {
+    var s = canvas.toDataURL('image/jpeg', q);
+    while (maxChars && s.length > maxChars && q > 0.3) { q -= 0.1; s = canvas.toDataURL('image/jpeg', q); }
+    return s;
+  }
+
+  /** src: a File from the camera, or a data URL. Returns { full, pattern, thumb, crop, sq, width, height, size };
+      sq is the suggested crop square, which the person adjusts in the crop screen; size is the photo as taken, "4032x3024". */
+  function process(src) {
+    return (typeof src === 'string' ? Promise.resolve(src) : readFile(src)).then(loadImage).then(function (img) {
+      var full = scaled(img, FULL), box = null;
+      try { box = findBack(full); } catch (e) { console.warn('Back detection failed', e); }
+      var crop = box ? 'auto' : 'centre';
+      if (!box) { var s = Math.min(full.width, full.height) * 0.75; box = { x: (full.width - s) / 2, y: (full.height - s) / 2, w: s, h: s }; }
+      var sq = squareOf(full, box), c = cuts(full, sq);
+      return { full: jpeg(full, 0.82), pattern: c.pattern, thumb: c.thumb, crop: crop, sq: sq, width: full.width, height: full.height, size: img.width + 'x' + img.height };
+    });
+  }
+  /** Cuts the chosen square out of a photo that process() returned. */
+  function cropAt(fullDataUrl, sq) { return loadImage(fullDataUrl).then(function (img) { return cuts(scaled(img, FULL), sq); }); }
+  /** The same photo turned a quarter turn clockwise. */
+  function rotate(fullDataUrl) {
+    return loadImage(fullDataUrl).then(function (img) {
+      var c = canvasOf(img.height, img.width), x = c.getContext('2d');
+      x.translate(c.width, 0); x.rotate(Math.PI / 2); x.drawImage(img, 0, 0);
+      return jpeg(c, 0.85);
+    });
+  }
+
+  /**
+   * Points of interest in a back-pattern image, with a short binary description of the skin around each.
+   * Resolves to { n, pts: Float32Array [x0, y0, ...], des: Uint8Array n*32 }, or null when OpenCV is unavailable.
+   */
+  function describe(patternDataUrl) {
+    return load().then(function (ok) {
+      if (!ok) return null;
+      return loadImage(patternDataUrl).then(function (img) {
+        var c = canvasOf(MATCH_SIDE, MATCH_SIDE); c.getContext('2d').drawImage(img, 0, 0, MATCH_SIDE, MATCH_SIDE);
+        var src = cv.imread(c), gray = new cv.Mat(), eq = new cv.Mat(), clahe = new cv.CLAHE(2.0, new cv.Size(8, 8));
+        var orb = new cv.ORB(MATCH_POINTS), kp = new cv.KeyPointVector(), des = new cv.Mat(), none = new cv.Mat(), out;
+        try {
+          cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY); clahe.apply(gray, eq);   // even out lighting before looking for points
+          orb.detectAndCompute(eq, none, kp, des);
+          var n = kp.size(), pts = new Float32Array(n * 2), i, p;
+          for (i = 0; i < n; i++) { p = kp.get(i).pt; pts[2 * i] = p.x; pts[2 * i + 1] = p.y; }
+          out = { n: n, pts: pts, des: n ? new Uint8Array(des.data) : new Uint8Array(0) };   // copied out, so nothing in OpenCV's memory is kept
+        } finally { src.delete(); gray.delete(); eq.delete(); clahe.delete(); orb.delete(); kp.delete(); des.delete(); none.delete(); }
+        return out;
+      });
+    }).catch(function (e) { console.warn('Could not describe the pattern', e); return null; });
+  }
+
+  /**
+   * How many points of pattern a line up with points of pattern b under one consistent placement
+   * (shift, turn, modest stretch). Different frogs give a handful at most; the same frog gives tens to hundreds.
+   */
+  function count(a, b) {
+    if (!a || !b || a.n < 4 || b.n < 4 || status !== 'ready') return 0;
+    var da = cv.matFromArray(a.n, 32, cv.CV_8U, a.des), db = cv.matFromArray(b.n, 32, cv.CV_8U, b.des);
+    var bf = new cv.BFMatcher(cv.NORM_HAMMING, false), mm = new cv.DMatchVectorVector(), best = {}, good = [], i, pr, m, m2, result = 0;
+    var from = null, to = null, inl = null, M = null;
+    try {
+      bf.knnMatch(da, db, mm, 2);
+      for (i = 0; i < mm.size(); i++) {
+        pr = mm.get(i); if (pr.size() < 2) continue;
+        m = pr.get(0); m2 = pr.get(1);
+        // keep a pairing only when it is clearly better than the runner-up, and let each point of b be used once
+        if (m.distance < RATIO * m2.distance && (!best[m.trainIdx] || m.distance < best[m.trainIdx].d)) best[m.trainIdx] = { q: m.queryIdx, t: m.trainIdx, d: m.distance };
+      }
+      Object.keys(best).forEach(function (k) { good.push(best[k]); });
+      if (good.length < 4) return 0;
+      from = new cv.Mat(good.length, 1, cv.CV_32FC2); to = new cv.Mat(good.length, 1, cv.CV_32FC2); inl = new cv.Mat();
+      for (i = 0; i < good.length; i++) {
+        from.data32F[2 * i] = a.pts[2 * good[i].q]; from.data32F[2 * i + 1] = a.pts[2 * good[i].q + 1];
+        to.data32F[2 * i] = b.pts[2 * good[i].t]; to.data32F[2 * i + 1] = b.pts[2 * good[i].t + 1];
+      }
+      M = cv.estimateAffine2D(from, to, inl, cv.RANSAC, MATCH_SIDE * 0.012, 5000, 0.999, 10);
+      if (M && M.rows === 2) {
+        var d = M.data64F, sx = Math.hypot(d[0], d[3]), sy = Math.hypot(d[1], d[4]), det = d[0] * d[4] - d[1] * d[3];
+        // reject placements no real pair of photos could need: collapsing to a dot, heavy stretch, or a mirror image
+        if (sx >= 0.4 && sx <= 2.5 && sy >= 0.4 && sy <= 2.5 && sx / sy >= 0.6 && sx / sy <= 1.67 && det > 0) result = cv.countNonZero(inl);
+      }
+    } catch (e) { console.warn('Matching failed', e); result = 0; }
+    finally { da.delete(); db.delete(); bf.delete(); mm.delete(); if (from) from.delete(); if (to) to.delete(); if (inl) inl.delete(); if (M) M.delete(); }
+    return result;
+  }
+
+  return { load: load, process: process, scaled: scaled, loadImage: loadImage, readFile: readFile, cropAt: cropAt, rotate: rotate, describe: describe, count: count, findBack: findBack,
+    status: function () { return status; }, onStatus: function (f) { onStatus = f; }, loadMs: function () { return loadMs; } };
+})();
+</script>
+<script>
+/* XenoLog - page logic. Talks to Code.gs through google.script.run. */
+(function () {
+  var DAY = 86400000;
+  var MATCH_MIN = 10;      // matching points needed before a frog is called a match; different frogs gave 5 or fewer in tests
+  var S = { data: null, thumbs: {}, basket: [], tab: 'priming', view: { name: 'tanks' }, shot: null, warn: null, confirm: null,
+    big: false, error: '', tankPhotos: {}, feat: {}, detail: null, full: {}, addPhoto: null, busy: 0,
+    trial: null, since: fresh() };   // timing of the frog being identified, written to the Timing sheet
+  // Counts since the last frog was chosen; they carry over when the person goes back and opens another tank.
+  function fresh() { return { first: null, opens: 0, photos: 0, compares: 0, resting: [] }; }
+
+  /* ---------- server ---------- */
+  function call(name, args, quiet) {
+    return new Promise(function (ok, fail) {
+      if (!quiet) busy(1);
+      var runner = google.script.run
+        .withSuccessHandler(function (r) { if (!quiet) busy(-1); ok(r); })
+        .withFailureHandler(function (e) { if (!quiet) busy(-1); fail(e); });
+      runner[name].apply(runner, args || []);
+    });
+  }
+  function busy(d) { S.busy = Math.max(0, S.busy + d); document.getElementById('busy').hidden = S.busy === 0; }
+  function fail(e) { S.error = (e && e.message ? e.message : String(e)).replace(/^Error:\s*/, ''); render(); window.scrollTo(0, 0); }
+  function applyState(st) {
+    st.frogs.forEach(function (f) { if (f.thumb) S.thumbs[f.id] = f.thumb; });
+    S.data = st;
+  }
+
+  /* ---------- small helpers ---------- */
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function toDate(iso) { var p = iso.split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); }
+  function daysBetween(a, b) { return Math.round((toDate(b) - toDate(a)) / DAY); }
+  function frog(id) { for (var i = 0; i < S.data.frogs.length; i++) if (S.data.frogs[i].id === id) return S.data.frogs[i]; }
+  function inBasket(id) { return S.basket.some(function (b) { return b.id === id; }); }
+  function status(f) {
+    if (!f.inColony) return { k: 'off', label: 'Removed' };
+    if (f.open) return { k: 'use', label: 'In use' };
+    if (inBasket(f.id)) return { k: 'use', label: 'Selected' };
+    if (f.restUntil > S.data.today) return { k: 'rest', label: 'Resting, ' + daysBetween(S.data.today, f.restUntil) + ' d left', until: f.restUntil };
+    return { k: 'ok', label: 'Available' };
+  }
+  function colony() { return S.data.frogs.filter(function (f) { return f.inColony; }); }
+  function tankNos() { var m = {}; colony().forEach(function (f) { if (f.tank) m[f.tank] = 1; }); return Object.keys(m).map(Number).sort(function (a, b) { return a - b; }); }
+  function inTank(t) { return colony().filter(function (f) { return f.tank === t; }); }
+  function present(t) { return inTank(t).filter(function (f) { return !f.open && !inBasket(f.id); }); }
+  function tankInfo(t) {
+    var p = present(t), ok = p.filter(function (f) { return status(f).k === 'ok'; }).length;
+    return { t: t, all: inTank(t), present: p, ok: ok, kind: ok === 0 ? 2 : (ok < p.length ? 0 : 1) };
+  }
+  function refs(t, id) { return (S.tankPhotos[t] && S.tankPhotos[t][id]) || []; }
+  function ranked(t) {
+    if (S.shot && S.shot.tank === t && S.shot.ranks) return S.shot.ranks.map(function (r) { return { f: frog(r.id), score: r.score }; }).filter(function (o) { return o.f && !inBasket(o.f.id); });
+    return present(t).map(function (f) { return { f: f, score: null }; });
+  }
+  function pill(st) { return '<span class="pill ' + st.k + '">' + st.label + '</span>'; }
+  function ph(src, px, id, zoom) {
+    var size = 'style="width:' + px + 'px;height:' + px + 'px"';
+    if (!src) return '<div class="ph none" ' + size + '>No photo</div>';
+    return '<img class="ph" ' + size + ' src="' + src + '" alt="Back of #' + id + '"' + (zoom ? ' data-zoom="' + id + '"' : '') + '>';
+  }
+  function bigPh(src, alt, empty) { return src ? '<img class="ph fill" src="' + src + '" alt="' + esc(alt) + '">' : '<div class="ph fill none">' + esc(empty) + '</div>'; }
+  function head(title, back) { return '<header class="top">' + (back ? '<button class="back" data-act="back" id="btn-back">Back</button>' : '') + '<h1>' + title + '</h1></header>' + (S.error ? '<div class="alert danger" role="alert">' + esc(S.error) + ' <button class="link" data-act="dismiss" id="btn-dismiss">Dismiss</button></div>' : ''); }
+  function who() { return '<div class="who"><span>Signed in as ' + esc(S.data.user) + '</span><button class="link" data-act="reload" id="btn-reload">Refresh</button></div>'; }
+  function segs(name, opts, sel) { return '<div class="segs">' + opts.map(function (o, i) { return '<label class="seg"><input type="radio" name="' + name + '" id="' + name + '-' + i + '" value="' + esc(o) + '"' + (o === sel ? ' checked' : '') + '>' + esc(o) + '</label>'; }).join('') + '</div>'; }
+  function checked(name) { var el = document.querySelector('input[name="' + name + '"]:checked'); return el ? el.value : ''; }
+  function egg(r, k) { return (r[k + 'Qty'] || '-') + ' / ' + (r[k + 'App'] || '-') + ' / ' + (r[k + 'Ca'] || '-'); }
+  function plural(n, w) { return n + ' ' + w + (n === 1 ? '' : 's'); }
+  var toastT;
+  function toast(msg) { var el = document.getElementById('toast'); el.textContent = msg; el.hidden = false; clearTimeout(toastT); toastT = setTimeout(function () { el.hidden = true; }, 2800); }
+
+  /* ---------- photos ---------- */
+  function loadTank(t) {
+    var ids = inTank(t).map(function (f) { return f.id; });
+    return call('getTankPhotos', [ids], true).then(function (r) {
+      S.tankPhotos[t] = r;
+      ids.forEach(function (id) { var l = r[id] || []; if (l.length) l[l.length - 1].last = true; });
+      if (S.view.name === 'tank' || S.view.name === 'compare') render();
+      if (S.shot && S.shot.tank === t) rank().then(function () { if (S.view.name === 'tank' || S.view.name === 'compare') render(); });
+      return derive([].concat.apply([], ids.map(function (id) { return (r[id] || []).map(function (p) { p.frog = id; return p; }); })));
+    }).catch(function (e) { console.warn(e); });
+  }
+  // Photos registered without a crop (imported files) get one here, once.
+  var deriving = Promise.resolve();
+  function derive(list) {
+    deriving = deriving.then(async function () {
+      for (var i = 0; i < list.length; i++) {
+        var p = list[i];
+        if (p.pattern) continue;
+        try {
+          var r = await Matcher.process(await call('getFullPhoto', [p.photoId], true));
+          p.thumb = r.thumb; p.pattern = r.pattern; p.crop = r.crop;
+          if (p.frog && p.last) S.thumbs[p.frog] = r.thumb;
+          await call('savePhotoDerived', [[{ photoId: p.photoId, thumb: r.thumb, pattern: r.pattern, crop: r.crop, emb: '' }]], true);
+          await rank();
+          if (['tanks', 'tank', 'compare', 'frog', 'frogs', 'inuse'].indexOf(S.view.name) >= 0) render();
+        } catch (e) { console.warn('Could not prepare photo ' + p.photoId, e); }
+      }
+    });
+    return deriving;
+  }
+  // Pattern points of a stored photo, worked out once per session from its back image.
+  function featuresOf(p) {
+    var key = p.photoId + '|' + p.pattern.length;      // a re-crop changes the image, and with it the key
+    if (!S.feat[key]) S.feat[key] = Matcher.describe(p.pattern);
+    return S.feat[key];
+  }
+  // Counts matching points between the new photo and every earlier photo of each frog still in the tank.
+  async function rank() {
+    var s = S.shot;
+    if (!s || !s.feat) return;
+    var tank = s.tank, frogs = present(tank), out = [], started = Date.now();
+    for (var i = 0; i < frogs.length; i++) {
+      var list = refs(tank, frogs[i].id).filter(function (p) { return p.pattern; }), best = null;
+      for (var j = 0; j < list.length; j++) {
+        var f = await featuresOf(list[j]);
+        if (!f) continue;
+        var n = Matcher.count(s.feat, f);
+        if (best == null || n > best) best = n;
+        await new Promise(function (r) { setTimeout(r, 0); });      // let the page breathe between comparisons
+      }
+      out.push({ id: frogs[i].id, score: best });
+    }
+    if (S.shot !== s || s.tank !== tank) return;     // the photo was taken on to another tank meanwhile
+    out.sort(function (a, b) { return (b.score == null ? -1 : b.score) - (a.score == null ? -1 : a.score); });
+    s.ranks = out.every(function (r) { return r.score == null; }) ? null : out;
+    s.ranked = true; s.doneAt = Date.now(); s.rankMs = s.doneAt - started;   // the last run counts: it is the one whose result is on screen
+  }
+  /* Crop screen: the photo with a square the person drags over the back. done() gets { full, pattern, thumb, crop }. */
+  function cropEdit(r, done) {
+    var box = document.getElementById('cropper'), st = { full: r.full, sq: r.sq, w: r.width, h: r.height, crop: r.crop, moved: false };
+    function close() { box.hidden = true; box.innerHTML = ''; }
+    function place() {
+      var f = document.getElementById('crop-frame'), sl = document.getElementById('crop-size'), q = st.sq;
+      f.style.left = (q.x / st.w * 100) + '%'; f.style.top = (q.y / st.h * 100) + '%';
+      f.style.width = (q.side / st.w * 100) + '%'; f.style.height = (q.side / st.h * 100) + '%';
+      sl.value = Math.round(q.side);
+    }
+    function clamp() {
+      var q = st.sq; q.side = Math.max(40, Math.min(q.side, st.w, st.h));
+      q.x = Math.max(0, Math.min(q.x, st.w - q.side)); q.y = Math.max(0, Math.min(q.y, st.h - q.side));
+    }
+    function draw() {
+      box.innerHTML = '<div class="crop-in"><header class="top"><h1>Crop to the back</h1></header>' +
+        '<p class="note">Drag the square over the back, with the head at the top. Rotate the photo if the frog lies sideways.</p>' +
+        '<div class="crop-stage"><img id="crop-img" src="' + st.full + '" alt="The photo you took" draggable="false"><div id="crop-frame"></div></div>' +
+        '<label class="field"><span>Size of the square</span><input type="range" id="crop-size" min="' + Math.round(Math.min(st.w, st.h) * 0.15) + '" max="' + Math.min(st.w, st.h) + '"></label>' +
+        '<button class="btn" id="crop-ok">Use this crop</button>' +
+        '<div class="btnrow"><button class="btn ghost" id="crop-rotate">Rotate 90\u00b0</button><button class="btn ghost" id="crop-cancel">Cancel</button></div></div>';
+      box.hidden = false; box.scrollTop = 0; clamp(); place();
+      var frame = document.getElementById('crop-frame'), img = document.getElementById('crop-img'), drag = null;
+      frame.addEventListener('pointerdown', function (e) { drag = { px: e.clientX, py: e.clientY, x: st.sq.x, y: st.sq.y }; frame.setPointerCapture(e.pointerId); e.preventDefault(); });
+      frame.addEventListener('pointermove', function (e) {
+        if (!drag) return;
+        var k = st.w / img.clientWidth;
+        st.sq.x = drag.x + (e.clientX - drag.px) * k; st.sq.y = drag.y + (e.clientY - drag.py) * k; st.moved = true; clamp(); place();
+      });
+      var end = function () { drag = null; };
+      frame.addEventListener('pointerup', end); frame.addEventListener('pointercancel', end);
+      document.getElementById('crop-size').addEventListener('input', function (e) {
+        var q = st.sq, cx = q.x + q.side / 2, cy = q.y + q.side / 2;
+        q.side = +e.target.value; q.x = cx - q.side / 2; q.y = cy - q.side / 2; st.moved = true; clamp(); place();
+      });
+      document.getElementById('crop-cancel').addEventListener('click', close);
+      document.getElementById('crop-rotate').addEventListener('click', function () {
+        busy(1);
+        Matcher.rotate(st.full).then(Matcher.process).then(function (n) { busy(-1); st.full = n.full; st.sq = n.sq; st.w = n.width; st.h = n.height; st.crop = n.crop; st.moved = true; draw(); })
+          .catch(function (e) { busy(-1); close(); fail(e); });
+      });
+      document.getElementById('crop-ok').addEventListener('click', function () {
+        busy(1);
+        Matcher.cropAt(st.full, st.sq).then(function (c) { busy(-1); close(); done({ full: st.full, pattern: c.pattern, thumb: c.thumb, crop: st.moved ? 'manual' : 'confirmed', found: st.crop === 'auto', size: r.size }); })
+          .catch(function (e) { busy(-1); close(); fail(e); });
+      });
+    }
+    draw();
+  }
+  function shoot(file, done) {
+    busy(1);
+    Matcher.process(file).then(function (r) { busy(-1); cropEdit(r, done); }).catch(function (e) { busy(-1); fail(e); });
+  }
+  function takeShot(file, t) {
+    var at = Date.now();
+    S.since.photos++;
+    shoot(file, async function (p) {
+      var shot = S.shot = { tank: t, takenIn: t, full: p.full, pattern: p.pattern, thumb: p.thumb, crop: p.crop, feat: null, ranks: null, ranked: false,
+        photoAt: at, cropAt: Date.now(), found: p.found, size: p.size };
+      S.warn = null; render();
+      var started = Date.now();
+      shot.feat = await Matcher.describe(shot.pattern);
+      shot.describeMs = Date.now() - started;
+      if (S.shot !== shot) return;
+      await rank();
+      if (S.shot === shot) render();
+    });
+  }
+  function matchNote(t) {
+    var st = Matcher.status(), s = S.shot;
+    if (st === 'loading') return 'Pattern check: loading. This takes a moment the first time.';
+    if (st === 'unavailable') return 'The pattern check is unavailable on this device. Compare the photos by eye.';
+    if (!s || s.tank !== t) return '';
+    if (!s.ranked) return 'Pattern check: comparing...';
+    if (!s.ranks) return 'Pattern check: these frogs have no earlier photos to compare with yet.';
+    if (s.ranks[0].score >= MATCH_MIN) return 'The pattern check counts points of the back pattern that line up with an earlier photo. It is a suggestion; confirm by eye.';
+    return 'No match found: no earlier photo lines up with this one. A blurred photo, a reflection on the back, or a crop that misses the back can cause this. Compare by eye, or retake the photo.';
+  }
+
+  /* ---------- screens ---------- */
+  function vTanks() {
+    var infos = tankNos().map(tankInfo).sort(function (a, b) { return a.kind - b.kind || a.t - b.t; });
+    var h = head('Priming') + who();
+    h += '<div class="basket"><div><strong>Today\'s priming</strong> <span class="count">' + plural(S.basket.length, 'frog') + '</span></div>';
+    if (S.basket.length) {
+      h += '<div class="stack">' + S.basket.map(function (b) { return '<div class="row static">' + ph(b.photo ? b.photo.thumb : S.thumbs[b.id], 40, b.id) + '<div class="grow"><span class="id">#' + b.id + '</span> <span class="sub">Tank ' + b.tank + (b.photo ? ' · new photo' : ' · no new photo') + '</span></div><button class="link" data-act="unpick" data-id="' + b.id + '" id="unpick-' + b.id + '">Remove</button></div>'; }).join('') + '</div>';
+      h += '<button class="btn" data-act="savePriming" id="btn-save-priming">Save priming</button>';
+    } else h += '<p class="note">Take a frog out, then choose its tank below.</p>';
+    h += '</div>';
+    if (S.shot) h += '<div class="row static">' + ph(S.shot.thumb, 40, 'new') + '<div class="grow"><div class="ttl">Photo not used yet</div><div class="sub">Taken while Tank ' + S.shot.takenIn + ' was open. Open the tank this frog came from to compare it there.</div></div><button class="link" data-act="dropShot" id="btn-drop-shot">Discard</button></div>';
+    var names = ['Tanks with resting frogs (check the photo)', 'Tanks where every frog is available', 'Tanks with no available frog'];
+    [0, 1, 2].forEach(function (k) {
+      var list = infos.filter(function (i) { return i.kind === k; });
+      if (!list.length) return;
+      h += '<h2>' + names[k] + '</h2><div class="stack">';
+      list.forEach(function (i) {
+        h += '<button class="row" data-act="openTank" data-id="' + i.t + '" id="tank-' + i.t + '"><div class="grow"><div class="ttl">Tank ' + i.t + '</div><div class="chips">' +
+          i.all.map(function (f) { return '<span class="chip ' + status(f).k + '">#' + f.id + '</span>'; }).join('') + '</div></div><div class="count" title="available / in tank">' + i.ok + '/' + i.present.length + '</div></button>';
+      });
+      h += '</div>';
+    });
+    return h;
+  }
+
+  function vTank(t) {
+    var i = tankInfo(t), h = head('Tank ' + t, true), has = S.shot && S.shot.tank === t;
+    if (i.kind === 0) h += '<div class="alert rest">This tank has resting frogs. Check the frog you took against the photos.</div>';
+    var away = i.all.filter(function (f) { return i.present.indexOf(f) < 0; });
+    if (has) h += '<div class="shot">' + ph(S.shot.pattern, 96, 'new') + '<div class="grow"><div class="ttl">New photo</div><p class="note">' + (S.shot.takenIn !== t ? 'Taken while Tank ' + S.shot.takenIn + ' was open. ' : '') + 'Retake the photo if the pattern is not clear.</p></div></div>';
+    h += '<label class="btn' + (has ? ' ghost' : '') + '" for="file-cam" data-act="fileCtx" data-kind="shot" data-id="' + t + '" id="btn-cam">' + (has ? 'Retake photo' : 'Photograph the frog') + '</label>';
+    var note = matchNote(t);
+    if (note) h += '<p class="note">' + note + '</p>';
+    var order = ranked(t), scored = order.length && order[0].score != null;
+    var hits = order.filter(function (o) { return o.score != null && o.score >= MATCH_MIN; }).length;
+    if (hits > 1) h += '<div class="alert rest">More than one frog matches. One of the earlier photos may show the wrong frog. Compare carefully.</div>';
+    h += '<h2>' + (scored ? 'Pattern check' : 'Frogs in this tank') + '</h2><div class="stack">';
+    if (!order.length) h += '<p class="note">No frog can be taken from this tank right now.</p>';
+    order.forEach(function (o, n) {
+      var f = o.f, st = status(f), r = refs(t, f.id), latest = r.length ? r[r.length - 1] : null;
+      h += '<div class="cand" id="cand-' + f.id + '"><div class="line">' + ph((latest && latest.pattern) || S.thumbs[f.id], 96, f.id) + '<div class="grow"><div class="ttl"><span class="id">#' + f.id + '</span> ' + (o.score != null && o.score >= MATCH_MIN ? '<span class="pill ok">Match</span>' : '') + '</div><div>' + pill(st) + '</div><div class="sub">Last priming ' + (f.lastPriming || 'never') + ' · ' + plural(f.photos, 'photo') + '</div>' +
+        (o.score != null ? '<div class="sim">' + plural(o.score, 'matching point') + '</div><div class="bar"><i style="width:' + Math.min(100, Math.round(o.score / (MATCH_MIN * 4) * 100)) + '%"></i></div>' : (scored ? '<div class="sim">no earlier photo</div>' : '')) + '</div></div>';
+      if (S.warn === f.id) h += '<div class="alert danger">#' + f.id + ' is resting until ' + st.until + '. Put it back and take another frog.</div>';
+      h += '<div class="btnrow"><button class="btn ghost" data-act="compare" data-id="' + f.id + '" id="btn-cmp-' + f.id + '">Compare photos</button><button class="btn" data-act="pick" data-id="' + f.id + '" id="btn-pick-' + f.id + '">This is #' + f.id + '</button></div></div>';
+    });
+    h += '</div>';
+    if (away.length) h += '<p class="note">Not in the tank: ' + away.map(function (f) { return '#' + f.id + ' (' + status(f).label.toLowerCase() + ')'; }).join(', ') + '</p>';
+    return h;
+  }
+
+  function vCompare(v) {
+    var t = v.tank, id = v.id, f = frog(id), st = status(f), has = S.shot && S.shot.tank === t, order = ranked(t), list = refs(t, id);
+    var idx = Math.min(v.idx, list.length - 1), p = list[idx], h = head('Compare photos', true);
+    h += '<div class="switch" role="group" aria-label="Candidate">' + order.map(function (o) {
+      return '<button data-act="compare" data-id="' + o.f.id + '" id="sw-' + o.f.id + '"' + (o.f.id === id ? ' aria-current="true"' : '') + '><span class="id">#' + o.f.id + '</span>' + (o.score != null ? ' ' + o.score : '') + '</button>';
+    }).join('') + '</div>';
+    var left = has ? (v.whole ? S.shot.full : S.shot.pattern) : '', right = p ? (v.whole ? (S.full[p.photoId] || p.pattern) : p.pattern) : '';
+    h += '<div class="cmp' + (S.big ? ' big' : '') + '"><figure>' + bigPh(left, 'New photo', 'No new photo yet. Go back and photograph the frog.') + '<figcaption><strong>New photo</strong>' + (has ? ' · today' : '') + '</figcaption></figure>' +
+      '<figure>' + bigPh(right, 'Photo of #' + id, p ? 'Preparing this photo...' : 'No photo of #' + id + ' yet.') + '<figcaption><strong>#' + id + '</strong>' + (p ? ' · ' + p.date + ' · ' + esc(p.kind) : '') + '</figcaption></figure></div>';
+    h += '<div class="btnrow"><button class="link" data-act="big" id="btn-big">' + (S.big ? 'Show side by side' : 'Show larger (stacked)') + '</button><button class="link" data-act="whole" id="btn-whole">' + (v.whole ? 'Show the back only' : 'Show the whole photo') + '</button></div>';
+    if (list.length > 1) h += '<h2>Photos of #' + id + '</h2><div class="thumbs">' + list.map(function (q, n) {
+      return '<button class="thumb" data-act="photo" data-id="' + n + '" id="thumb-' + n + '"' + (n === idx ? ' aria-current="true"' : '') + '>' + ph(q.thumb || q.pattern, 64, id) + '<span>' + q.date + '</span></button>';
+    }).join('') + '</div>';
+    h += '<div>' + pill(st) + ' <span class="sub">Last priming ' + (f.lastPriming || 'never') + '</span></div>';
+    if (S.warn === id) h += '<div class="alert danger">#' + id + ' is resting until ' + st.until + '. Put it back and take another frog.</div>';
+    h += '<div class="btnrow"><button class="btn" data-act="pick" data-id="' + id + '" id="btn-cmp-pick">This is #' + id + '</button><button class="btn ghost" data-act="back" id="btn-cmp-back">Not sure, go back</button></div>';
+    return h;
+  }
+
+  function vTape(ids) {
+    var h = head('Priming saved') + '<div class="alert ok">' + plural(ids.length, 'frog') + (ids.length === 1 ? ' is' : ' are') + ' now in use. Priming date: ' + S.data.today + '.</div><h2>Write on the tape</h2><div class="stack">';
+    ids.forEach(function (id) { h += '<div class="tape"><span>Tank ' + frog(id).tank + '</span><span>#' + id + '</span></div>'; });
+    return h + '</div><button class="btn" data-act="tab" data-id="inuse" id="btn-to-inuse">Go to In use</button>';
+  }
+
+  function inUse() { return colony().filter(function (f) { return f.open; }); }
+  function vInuse() {
+    var list = inUse(), h = head('In use') + who();
+    if (!list.length) return h + '<p class="note">No frogs are in use. They appear here after you save a priming.</p>';
+    h += '<p class="note">Tap a photo to enlarge it.</p><div class="stack">';
+    list.forEach(function (f) {
+      h += '<button class="row" data-act="openUse" data-id="' + f.id + '" id="use-' + f.id + '">' + ph(S.thumbs[f.id], 64, f.id, true) + '<div class="grow"><div class="ttl"><span class="id">#' + f.id + '</span></div><div class="sub">Primed ' + f.open.priming + ' by ' + esc(f.open.name) + ' · returns to Tank ' + f.tank + '</div></div>' +
+        (f.open.state === 'Recorded' ? '<span class="pill ok">Recorded</span>' : '<span class="pill rest">No record yet</span>') + '</button>';
+    });
+    return h + '</div>';
+  }
+
+  function editForm(fid, recordId, r) {
+    var o = S.data.options;
+    return '<h2>Can still be edited</h2><form class="rec" id="' + fid + '" data-rec="' + esc(recordId) + '">' +
+      '<fieldset><legend>After Ca activation (squeezed eggs)</legend>' + segs('sqCa', o.ca, r.sqCa) + '</fieldset>' +
+      '<fieldset><legend>After Ca activation (laid eggs)</legend>' + segs('laidCa', o.ca, r.laidCa) + '</fieldset>' +
+      '<label class="field"><span>Comments</span><textarea id="edit-memo" rows="3">' + esc(r.comments) + '</textarea></label>' +
+      '<button class="btn ghost" type="submit" id="btn-save-edit">Save changes</button></form>';
+  }
+  function summary(r) {
+    return '<dl class="kv"><dt>Priming date</dt><dd>' + (r.priming || '-') + '</dd><dt>Collection date</dt><dd>' + (r.collection || '-') + '</dd><dt>Recorded by</dt><dd>' + (esc(r.name) || '-') + '</dd><dt>MMR H2O source</dt><dd>' + (esc(r.water) || '-') + '</dd><dt>Squeezed eggs</dt><dd>' + esc((r.sqQty || '-') + ' / ' + (r.sqApp || '-')) + '</dd><dt>Laid eggs</dt><dd>' + esc((r.laidQty || '-') + ' / ' + (r.laidApp || '-')) + '</dd></dl><p class="note">Egg values are quantity / appearance.</p>';
+  }
+  function vUse(id) {
+    var f = frog(id), r = f.open, o = S.data.options, h = head('Record for #' + id, true);
+    if (!r) return h + '<p class="note">#' + id + ' is no longer in use.</p>';
+    h += '<div class="row static">' + ph(S.thumbs[id], 88, id, true) + '<dl class="kv grow"><dt>Priming date</dt><dd>' + r.priming + '</dd><dt>Primed by</dt><dd>' + esc(r.name) + '</dd><dt>Returns to</dt><dd>Tank ' + f.tank + '</dd></dl></div>';
+    if (r.state === 'Recorded') {
+      return h + '<div class="alert ok">Egg record saved.</div>' + summary(r) + editForm('edit-form', r.id, r) +
+        '<button class="btn" data-act="ret" data-id="' + id + '" id="btn-ret">Returned to Tank ' + f.tank + '</button>';
+    }
+    h += '<form class="rec" id="rec-form" data-rec="' + esc(r.id) + '">' +
+      '<label class="field"><span>Collection date</span><input type="date" id="rec-date" value="' + S.data.today + '"></label>' +
+      '<fieldset><legend>MMR H2O source</legend>' + segs('water', o.water) + '</fieldset>' +
+      '<fieldset><legend>Quantity (squeezed eggs)</legend>' + segs('sqQty', o.quantity) + '</fieldset>' +
+      '<fieldset><legend>Appearance (squeezed eggs)</legend>' + segs('sqApp', o.appearance) + '</fieldset>' +
+      '<fieldset><legend>After Ca activation (squeezed eggs)</legend>' + segs('sqCa', o.ca) + '</fieldset>' +
+      '<fieldset><legend>Quantity (laid eggs)</legend>' + segs('laidQty', o.quantity) + '</fieldset>' +
+      '<fieldset><legend>Appearance (laid eggs)</legend>' + segs('laidApp', o.appearance) + '</fieldset>' +
+      '<fieldset><legend>After Ca activation (laid eggs)</legend>' + segs('laidCa', o.ca) + '</fieldset>' +
+      '<label class="field"><span>Comments</span><textarea id="rec-memo" rows="2"></textarea></label>' +
+      '<button class="btn" type="submit" id="btn-save-rec">Save record</button></form>' +
+      '<button class="btn ghost" data-act="ret" data-id="' + id + '" id="btn-ret-unused">Not used, returned to Tank ' + f.tank + '</button>' +
+      '<p class="note">"Not used" still counts as a priming: the frog rests for ' + S.data.restMonths + ' months.</p>';
+    if (S.confirm === 'cancel' + id) h += '<div class="alert danger">Cancel the priming of #' + id + '? Do this only if this frog was not injected. It becomes available again, and the photo taken with this entry is removed from its photos.</div><div class="btnrow"><button class="btn danger" data-act="cancelPriming" data-id="' + id + '" id="btn-cancel-yes">Cancel this priming</button><button class="btn ghost" data-act="cancel" id="btn-cancel-no">Keep it</button></div>';
+    else h += '<button class="link" data-act="askCancel" data-id="' + id + '" id="btn-cancel-priming">Entered by mistake? Cancel this priming</button>';
+    return h;
+  }
+
+  function vFrogs() {
+    var h = head('Frogs') + who() + '<div class="btnrow"><button class="btn" data-act="go" data-id="add" id="btn-add">Add a frog</button><button class="btn ghost" data-act="go" data-id="exchange" id="btn-exchange">Tank exchange</button></div>' +
+      candidates() +
+      '<h2>All frogs</h2><label class="field"><span>Find by ID</span><input type="text" inputmode="numeric" id="frog-search" placeholder="e.g. 27"></label><div class="stack" id="frog-list">';
+    S.data.frogs.slice().sort(function (a, b) { return (b.inColony - a.inColony) || (a.id - b.id); }).forEach(function (f) {
+      h += '<button class="row" data-act="openFrog" data-id="' + f.id + '" data-key="' + f.id + '" id="frog-' + f.id + '">' + ph(S.thumbs[f.id], 44, f.id) + '<div class="grow"><div class="ttl"><span class="id">#' + f.id + '</span></div><div class="sub">' + (f.inColony ? 'Tank ' + f.tank : 'Removed' + (f.removalReason ? ' (' + esc(f.removalReason.toLowerCase()) + ')' : '')) + ' · last priming ' + (f.lastPriming || 'never') + (f.quality.score != null ? ' · quality ' + f.quality.score : '') + '</div></div>' + pill(status(f)) + '</button>';
+    });
+    return h + '</div>';
+  }
+  function candidates() {
+    var q = S.data.qualityRule, list = colony().filter(function (f) { return f.quality.candidate; }).sort(function (a, b) { return a.quality.score - b.quality.score; });
+    var h = '<h2>Replacement candidates</h2>';
+    if (!list.length) h += '<p class="note">No frog is below the line right now.</p>';
+    else h += '<div class="stack">' + list.map(function (f) {
+      return '<button class="row" data-act="openFrog" data-id="' + f.id + '" id="cand-frog-' + f.id + '">' + ph(S.thumbs[f.id], 44, f.id) + '<div class="grow"><div class="ttl"><span class="id">#' + f.id + '</span> <span class="sub">Tank ' + f.tank + '</span></div><div class="sub">' + esc(f.quality.reason) + ' (' + f.quality.recent.join(', ') + ')</div></div><span class="pill rest">' + f.quality.score + '</span></button>';
+    }).join('') + '</div>';
+    return h + '<p class="note">Each cycle is scored 0 to 100 from the egg record: squeezed eggs count ' + q.squeezed + '%, laid eggs the rest, and appearance counts more than quantity. A frog is listed when the average of its last ' + q.cycles + ' cycles is below ' + q.threshold + ', or when its only cycle scored ' + q.firstThreshold + ' or less. This is a suggestion, not a decision.</p>';
+  }
+
+  function vFrog(id) {
+    var f = frog(id), d = S.detail && S.detail.id === id ? S.detail : null, h = head('#' + id, true);
+    h += '<div class="row static"><div class="grow">' + pill(status(f)) + '<dl class="kv" style="margin-top:8px"><dt>Tank</dt><dd>' + (f.inColony ? 'Tank ' + f.tank : 'Removed' + (f.removedOn ? ' on ' + f.removedOn : '') + (f.removalReason ? ' (' + esc(f.removalReason.toLowerCase()) + ')' : '')) + '</dd><dt>Arrived</dt><dd>' + (esc(f.arrival) || '-') + '</dd><dt>Source</dt><dd>' + (esc(f.source) || '-') + '</dd><dt>Last priming</dt><dd>' + (f.lastPriming || 'never') + '</dd><dt>Egg quality</dt><dd>' + (f.quality.score == null ? 'no scored cycle yet' : f.quality.score + ' of 100, from ' + plural(f.quality.recent.length, 'cycle') + ' (' + f.quality.recent.join(', ') + ')') + '</dd>' + (f.notes ? '<dt>Notes</dt><dd>' + esc(f.notes) + '</dd>' : '') + '</dl></div></div>';
+    if (f.inColony && f.quality.candidate) h += '<div class="alert rest">Replacement candidate: ' + esc(f.quality.reason.charAt(0).toLowerCase() + f.quality.reason.slice(1)) + '.</div>';
+    h += '<h2>Photos</h2>';
+    if (!d) h += '<p class="note">Loading...</p>';
+    else if (!d.photos.length) h += '<p class="note">No photos yet.</p>';
+    else h += '<div class="cmp">' + d.photos.map(function (p, n) { return '<figure>' + bigPh(p.pattern, 'Photo of #' + id, 'Preparing this photo...') + '<figcaption>' + p.date + ' · ' + esc(p.kind) + (p.crop === 'auto' || p.crop === 'centre' ? ' · automatic crop, not checked' : '') + (p.pattern ? ' <button class="link" data-act="recrop" data-id="' + n + '" id="recrop-' + n + '">Adjust crop</button>' : '') + ' <button class="link" data-act="askRemovePhoto" data-id="' + n + '" id="rmphoto-' + n + '">Remove</button>' + '</figcaption>' + (S.confirm === 'photo' + p.photoId ? '<div class="alert danger">Remove this photo from #' + id + '? It is no longer shown or used by the pattern check. The file stays in Drive.</div><div class="btnrow"><button class="btn danger" data-act="removePhoto" data-id="' + n + '" id="rmphoto-yes">Remove photo</button><button class="btn ghost" data-act="cancel" id="rmphoto-no">Keep it</button></div>' : '') + '</figure>'; }).join('') + '</div>';
+    if (f.inColony) h += '<label class="btn ghost" for="file-lib" data-act="fileCtx" data-kind="addPhoto" data-id="' + id + '" id="btn-add-photo">Add a photo</label>';
+    h += '<h2>Use history</h2>';
+    if (!d) h += '<p class="note">Loading...</p>';
+    else if (!d.records.length) h += '<p class="note">No records yet.</p>';
+    else h += '<div class="scroll"><table><thead><tr><th></th><th>Primed</th><th>Collected</th><th>Score</th><th>Squeezed</th><th>Laid</th><th>Comments</th><th>By</th></tr></thead><tbody>' +
+      d.records.map(function (r, n) { return '<tr><td><button class="link" data-act="editHist" data-id="' + n + '" id="hist-' + n + '">Edit</button></td><td>' + (r.priming || '-') + '</td><td>' + (r.collection || (r.state === 'Not used' ? 'not used' : '-')) + '</td><td>' + (r.score == null ? '-' : r.score) + '</td><td>' + esc(egg(r, 'sq')) + '</td><td>' + esc(egg(r, 'laid')) + '</td><td>' + esc(r.comments) + '</td><td>' + esc(r.name) + '</td></tr>'; }).join('') + '</tbody></table></div><p class="note">Egg values are quantity / appearance / after Ca activation.</p>';
+    if (f.inColony && !f.open) {
+      if (S.confirm === id) h += '<form class="rec" id="remove-form" data-id="' + id + '"><div class="alert danger">Remove #' + id + ' from the colony? Its records are kept and it is listed as removed.</div>' +
+        '<fieldset><legend>Reason</legend>' + segs('removeReason', S.data.removalReasons) + '</fieldset>' +
+        '<label class="field"><span>Note (optional)</span><input type="text" id="remove-note"></label>' +
+        '<div class="btnrow"><button class="btn danger" type="submit" id="btn-remove-yes">Remove</button><button class="btn ghost" type="button" data-act="cancel" id="btn-remove-no">Cancel</button></div></form>';
+      else h += '<button class="btn danger" data-act="askRemove" data-id="' + id + '" id="btn-remove">Remove this frog</button>';
+    }
+    return h;
+  }
+
+  function vHist(id, n) {
+    var r = S.detail.records[n];
+    return head('Record for #' + id, true) + summary(r) + editForm('hist-form', r.id, r);
+  }
+
+  function vAdd() {
+    var next = S.data.frogs.reduce(function (m, f) { return Math.max(m, f.id); }, 0) + 1, nos = tankNos();
+    var opts = nos.concat([(nos.length ? nos[nos.length - 1] : 0) + 1]).filter(function (t) { return inTank(t).length < S.data.tankSize; });
+    return head('Add a frog', true) + '<form class="rec" id="add-form">' +
+      '<div class="row static">' + ph(S.addPhoto && S.addPhoto.thumb, 96, next) + '<div class="grow"><div class="ttl">ID <span class="id">#' + next + '</span></div><p class="note">The ID is the next number in sequence.</p></div></div>' +
+      '<label class="btn ghost" for="file-lib" data-act="fileCtx" data-kind="newFrog" data-id="0" id="btn-new-photo">' + (S.addPhoto ? 'Retake photo' : 'Photograph the back') + '</label>' +
+      '<label class="field"><span>Arrival date</span><input type="text" id="add-date" value="' + S.data.today + '"></label>' +
+      '<label class="field"><span>Source</span><input type="text" id="add-source"></label>' +
+      '<label class="field"><span>Notes</span><input type="text" id="add-notes"></label>' +
+      '<label class="field"><span>Tank (tanks with a free place)</span><select id="add-tank">' + opts.map(function (t) { return '<option value="' + t + '">Tank ' + t + ' (' + inTank(t).length + ' now)</option>'; }).join('') + '</select></label>' +
+      '<button class="btn" type="submit" id="btn-add-save">Add frog</button></form>';
+  }
+
+  function vExchange() {
+    var act = colony().sort(function (a, b) { return a.id - b.id; }), moved = 0;
+    var rows = act.map(function (f, i) { var nt = Math.floor(i / S.data.tankSize) + 1; if (nt !== f.tank) moved++; return '<tr><td class="id">#' + f.id + '</td><td>Tank ' + f.tank + '</td><td' + (nt !== f.tank ? ' class="chg"' : '') + '>Tank ' + nt + '</td></tr>'; }).join('');
+    return head('Tank exchange', true) + '<p class="note">The ' + act.length + ' frogs in the colony, assigned ' + S.data.tankSize + ' per tank in ID order. ' + moved + ' would move.</p>' +
+      (inUse().length ? '<div class="alert use">Some frogs are in use. Confirming also changes the tank they return to.</div>' : '') +
+      '<div class="scroll"><table><thead><tr><th>ID</th><th>Now</th><th>After</th></tr></thead><tbody>' + rows + '</tbody></table></div>' +
+      '<button class="btn" data-act="applyExchange" id="btn-apply-exchange"' + (moved ? '' : ' disabled') + '>Confirm this layout</button>';
+  }
+
+  /* ---------- render and navigation ---------- */
+  function render() {
+    var app = document.getElementById('app'), v = S.view, h;
+    if (!S.data) { app.innerHTML = head('XenoLog') + '<p class="note">Loading...</p>'; return; }
+    if (v.name === 'tanks') h = vTanks(); else if (v.name === 'tank') h = vTank(v.id); else if (v.name === 'compare') h = vCompare(v);
+    else if (v.name === 'tape') h = vTape(v.ids); else if (v.name === 'inuse') h = vInuse(); else if (v.name === 'use') h = vUse(v.id);
+    else if (v.name === 'frogs') h = vFrogs(); else if (v.name === 'frog') h = vFrog(v.id); else if (v.name === 'hist') h = vHist(v.id, v.n);
+    else if (v.name === 'add') h = vAdd(); else h = vExchange();
+    app.innerHTML = h;
+    var n = inUse().length;
+    document.getElementById('tabs').innerHTML = [['priming', 'Priming'], ['inuse', 'In use' + (n ? ' ' + n : '')], ['frogs', 'Frogs']].map(function (t) {
+      return '<button data-act="tab" data-id="' + t[0] + '" id="tab-' + t[0] + '"' + (S.tab === t[0] ? ' aria-current="page"' : '') + '>' + t[1] + '</button>';
+    }).join('');
+  }
+  function go(view, keepScroll) { S.view = view; S.warn = null; S.confirm = null; S.error = ''; render(); if (!keepScroll) window.scrollTo(0, 0); }
+  var home = { priming: 'tanks', inuse: 'inuse', frogs: 'frogs' };
+  function openFrog(id) {
+    S.detail = null; go({ name: 'frog', id: id });
+    return call('getFrogDetail', [id], true).then(function (d) {
+      setDetail(d);
+      if (S.view.name === 'frog' && S.view.id === id) render();
+      derive(d.photos);
+    }).catch(fail);
+  }
+  function setDetail(d) {
+    S.detail = d;
+    if (d.photos.length) { d.photos.forEach(function (p) { p.frog = d.id; }); d.photos[d.photos.length - 1].last = true; }
+  }
+  function recrop(id, p) {
+    busy(1);
+    call('getFullPhoto', [p.photoId], true).then(Matcher.process).then(function (r) {
+      busy(-1);
+      cropEdit(r, function (q) {
+        busy(1);
+        call('savePhotoDerived', [[{ photoId: p.photoId, thumb: q.thumb, pattern: q.pattern, emb: '', crop: 'manual' }]], true).then(function () {
+          busy(-1); p.pattern = q.pattern; p.thumb = q.thumb; p.crop = 'manual';
+          if (p.last) S.thumbs[id] = q.thumb;
+          delete S.tankPhotos[frog(id).tank]; render(); toast('Crop saved');
+        }).catch(function (e) { busy(-1); fail(e); });
+      });
+    }).catch(function (e) { busy(-1); fail(e); });
+  }
+  function pick(id) {
+    var f = frog(id), s = S.shot, t = f.tank;
+    if (status(f).k === 'rest') { S.warn = id; S.since.resting.push(id); render(); return; }
+    if (status(f).k !== 'ok') return;
+    var item = { id: id, tank: t, photo: null, match: null };
+    if (s && s.tank === t) {
+      item.photo = { full: s.full, pattern: s.pattern, thumb: s.thumb, emb: '', crop: s.crop };
+      // Logged for later review: what the pattern check suggested (nothing, when no frog reached the threshold) and every count.
+      if (s.ranks) { item.match = { tank: t, best: s.ranks[0].score >= MATCH_MIN ? s.ranks[0].id : '', scores: {} }; s.ranks.forEach(function (r) { if (r.score != null) item.match.scores[r.id] = r.score; }); }
+    } else s = null;
+    var tr = S.trial && S.trial.tank === t ? S.trial : { opened: null }, n = S.since;
+    item.timing = { opened: tr.opened, first: n.first, photoAt: s && s.photoAt, cropAt: s && s.cropAt, doneAt: s && s.doneAt, pickedAt: Date.now(),
+      photos: n.photos, found: s ? s.found : null, moved: s ? s.crop === 'manual' : null, compares: n.compares, opens: n.opens,
+      resting: n.resting, matchMs: s && s.rankMs != null ? (s.describeMs || 0) + s.rankMs : null, size: s ? s.size : '' };
+    S.trial = null; S.since = fresh();
+    S.basket.push(item); S.shot = null; go({ name: 'tanks' }); toast('#' + id + ' added to today\'s priming');
+  }
+  // One Timing row per frog: the clock time the tank was opened, then seconds from there to each step
+  // (negative for a photo taken while another tank was open), and the seconds spent in tanks opened before it.
+  function timingRow(tm, savedAt) {
+    if (!tm) return null;
+    var sec = function (ms) { return ms && tm.opened ? Math.round((ms - tm.opened) / 100) / 10 : ''; };
+    var two = function (n) { return (n < 10 ? '0' : '') + n; }, d = tm.opened ? new Date(tm.opened) : null;
+    return { opened: d ? d.getFullYear() + '-' + two(d.getMonth() + 1) + '-' + two(d.getDate()) + ' ' + two(d.getHours()) + ':' + two(d.getMinutes()) + ':' + two(d.getSeconds()) + '.' + String(1000 + d.getMilliseconds()).slice(1) : '',
+      photo: sec(tm.photoAt), crop: sec(tm.cropAt), match: sec(tm.doneAt), picked: sec(tm.pickedAt), saved: sec(savedAt),
+      photos: tm.photos, found: tm.found, moved: tm.moved, compares: tm.compares, opens: tm.opens, resting: tm.resting.join(', '),
+      matchMs: tm.matchMs == null ? '' : tm.matchMs, size: tm.size || '', earlier: tm.first && tm.opened ? Math.round((tm.opened - tm.first) / 100) / 10 : '' };
+  }
+  function reload(quiet) {
+    return call('getState', [], quiet).then(function (st) {
+      applyState(st);
+      if (!quiet || ['use', 'add', 'hist'].indexOf(S.view.name) < 0) render();   // do not wipe a form that is being filled in
+      if (!quiet) call('getThumbs', [], true).then(function (t) {              // photos arrive after the lists are usable
+        Object.keys(t).forEach(function (id) { S.thumbs[id] = t[id]; });
+        if (['tanks', 'tank', 'inuse', 'frogs'].indexOf(S.view.name) >= 0 && !document.getElementById('frog-search')) render();
+      }).catch(function () {});
+    }).catch(fail);
+  }
+
+  document.addEventListener('click', function (e) {
+    var zoom = document.getElementById('zoom');
+    if (e.target.closest('#zoom')) { zoom.hidden = true; zoom.innerHTML = ''; return; }
+    var z = e.target.closest('img[data-zoom]');
+    if (z) {
+      var zid = +z.dataset.zoom, zf = frog(zid);
+      zoom.innerHTML = '<div class="zin"><img class="ph fill" id="zoom-img" src="' + z.src + '" alt="Back of #' + zid + '"><p><strong class="id">#' + zid + '</strong> <span class="sub" id="zoom-cap">returns to Tank ' + zf.tank + '</span></p><button class="btn ghost" id="btn-zoom-close">Close</button></div>';
+      zoom.hidden = false;
+      call('getTankPhotos', [[zid]], true).then(function (r) {
+        var list = r[zid] || [], p = list[list.length - 1], img = document.getElementById('zoom-img');
+        if (p && p.pattern && img) { img.src = p.pattern; document.getElementById('zoom-cap').textContent = p.date + ' · ' + p.kind + ' · returns to Tank ' + zf.tank; }
+      }).catch(function () {});
+      return;
+    }
+    var b = e.target.closest('[data-act]'); if (!b || !S.data) return;
+    var act = b.dataset.act, id = b.dataset.id, v = S.view, f;
+    if (act === 'fileCtx') { S.fileCtx = { kind: b.dataset.kind, id: +id }; return; }   // the label itself opens the camera
+    if (act === 'tab') { S.tab = id; S.shot = null; go({ name: home[id] }); reload(true); }
+    else if (act === 'back') {
+      if (v.name === 'compare') go({ name: 'tank', id: v.tank });
+      else if (v.name === 'hist') go({ name: 'frog', id: v.id });
+      else { if (v.name !== 'tank') S.shot = null; S.addPhoto = null; go({ name: home[S.tab] }); }   // a photo taken in the wrong tank waits on the list
+    }
+    else if (act === 'dismiss') { S.error = ''; render(); }
+    else if (act === 'dropShot') { S.shot = null; render(); }
+    else if (act === 'reload') reload().then(function () { toast('Up to date'); });
+    else if (act === 'openTank') {
+      var now = Date.now();
+      if (S.shot && S.shot.tank !== +id) { S.shot.tank = +id; S.shot.ranks = null; S.shot.ranked = false; }   // compared again with this tank's frogs
+      S.trial = { tank: +id, opened: now }; S.since.opens++; if (!S.since.first) S.since.first = now;
+      go({ name: 'tank', id: +id }); loadTank(+id); Matcher.load();
+    }
+    else if (act === 'compare') {
+      var tk = v.name === 'compare' ? v.tank : v.id;
+      if (v.name !== 'compare') S.since.compares++;
+      go({ name: 'compare', tank: tk, id: +id, idx: 99, whole: false }, v.name === 'compare');
+    }
+    else if (act === 'photo') { v.idx = +id; render(); }
+    else if (act === 'big') { S.big = !S.big; render(); }
+    else if (act === 'whole') {
+      v.whole = !v.whole; render();
+      var list = refs(v.tank, v.id), p = list[Math.min(v.idx, list.length - 1)];
+      if (v.whole && p && !S.full[p.photoId]) call('getFullPhoto', [p.photoId], true).then(function (src) { S.full[p.photoId] = src; render(); }).catch(function () {});
+    }
+    else if (act === 'pick') pick(+id);
+    else if (act === 'unpick') { S.basket = S.basket.filter(function (x) { return x.id !== +id; }); render(); }
+    else if (act === 'savePriming') {
+      var on = S.data.recordTiming, savedAt = Date.now(), items = S.basket.map(function (x) { return { id: x.id, photo: x.photo, match: x.match, timing: on ? timingRow(x.timing, savedAt) : null }; });
+      var client = on ? { device: navigator.userAgent + ' ' + screen.width + 'x' + screen.height + '@' + (window.devicePixelRatio || 1), matcherLoadMs: Matcher.loadMs() } : null;
+      call('savePriming', [{ items: items, client: client }]).then(function (st) {
+        S.basket.forEach(function (x) { if (x.photo) S.thumbs[x.id] = x.photo.thumb; delete S.tankPhotos[x.tank]; });
+        var ids = S.basket.map(function (x) { return x.id; });
+        S.basket = []; applyState(st); go({ name: 'tape', ids: ids });
+      }).catch(function (e) { fail(e); reload(true); });
+    }
+    else if (act === 'openUse') go({ name: 'use', id: +id });
+    else if (act === 'ret') {
+      f = frog(+id);
+      call('returnFrog', [f.open.id]).then(function (st) { applyState(st); go({ name: 'inuse' }); toast('#' + f.id + ' returned to Tank ' + f.tank); }).catch(fail);
+    }
+    else if (act === 'askCancel') { S.confirm = 'cancel' + id; render(); }
+    else if (act === 'cancelPriming') {
+      f = frog(+id);
+      call('cancelPriming', [f.open.id]).then(function (st) {
+        delete S.thumbs[f.id]; delete S.tankPhotos[f.tank]; applyState(st); go({ name: 'inuse' }); toast('Priming of #' + f.id + ' cancelled');
+        call('getThumbs', [], true).then(function (t) { Object.keys(t).forEach(function (k) { S.thumbs[k] = t[k]; }); if (S.view.name === 'inuse') render(); }).catch(function () {});
+      }).catch(fail);
+    }
+    else if (act === 'openFrog') openFrog(+id);
+    else if (act === 'editHist') go({ name: 'hist', id: v.id, n: +id });
+    else if (act === 'recrop') recrop(v.id, S.detail.photos[+id]);
+    else if (act === 'askRemovePhoto') { S.confirm = 'photo' + S.detail.photos[+id].photoId; render(); }
+    else if (act === 'removePhoto') {
+      var fid = v.id, rp = S.detail.photos[+id];
+      call('removePhoto', [fid, rp.photoId]).then(function (d) {
+        S.confirm = null; setDetail(d); delete S.tankPhotos[frog(fid).tank]; frog(fid).photos = d.photos.length;
+        if (rp.last) delete S.thumbs[fid];
+        if (S.detail.photos.length) S.thumbs[fid] = S.detail.photos[S.detail.photos.length - 1].thumb || S.thumbs[fid];
+        render(); toast('Photo removed');
+      }).catch(fail);
+    }
+    else if (act === 'go') { S.addPhoto = null; go({ name: id }); }
+    else if (act === 'askRemove') { S.confirm = +id; render(); }
+    else if (act === 'cancel') { S.confirm = null; render(); }
+    else if (act === 'applyExchange') call('applyExchange', []).then(function (st) { applyState(st); S.tankPhotos = {}; go({ name: 'frogs' }); toast('New tank layout confirmed'); }).catch(fail);
+  });
+
+  document.addEventListener('change', function (e) {
+    var el = e.target, file = el.files && el.files[0], ctx = S.fileCtx;
+    if (!file || !ctx || (el.id !== 'file-cam' && el.id !== 'file-lib')) return;
+    S.fileCtx = null;
+    if (ctx.kind === 'shot') takeShot(file, ctx.id);
+    else if (ctx.kind === 'newFrog') shoot(file, function (p) { S.addPhoto = p; keepForm(render); });
+    else if (ctx.kind === 'addPhoto') {
+      var id = ctx.id;
+      shoot(file, function (p) {
+        busy(1);
+        call('addPhoto', [id, { full: p.full, pattern: p.pattern, thumb: p.thumb, emb: '', crop: p.crop }], true)
+          .then(function (d) { busy(-1); S.thumbs[id] = p.thumb; delete S.tankPhotos[frog(id).tank]; frog(id).photos++; setDetail(d); render(); toast('Photo added'); })
+          .catch(function (x) { busy(-1); fail(x); });
+      });
+    }
+    el.value = '';
+  });
+  // Re-rendering the add form would wipe what was typed; carry the values across.
+  function keepForm(fn) {
+    var keep = {}; ['add-date', 'add-source', 'add-notes', 'add-tank'].forEach(function (k) { var el = document.getElementById(k); if (el) keep[k] = el.value; });
+    fn();
+    Object.keys(keep).forEach(function (k) { var el = document.getElementById(k); if (el) el.value = keep[k]; });
+  }
+
+  document.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var form = e.target, rec = form.dataset.rec;
+    if (form.id === 'rec-form') {
+      var id = S.view.id, date = document.getElementById('rec-date').value;
+      if (!date) { toast('Enter the collection date'); return; }
+      call('saveRecord', [rec, { collection: date, water: checked('water'), sqQty: checked('sqQty'), sqApp: checked('sqApp'), sqCa: checked('sqCa'), laidQty: checked('laidQty'), laidApp: checked('laidApp'), laidCa: checked('laidCa'), comments: document.getElementById('rec-memo').value }])
+        .then(function (st) { applyState(st); go({ name: 'use', id: id }); }).catch(fail);
+    } else if (form.id === 'edit-form' || form.id === 'hist-form') {
+      var v = S.view;
+      call('updateRecord', [rec, { sqCa: checked('sqCa'), laidCa: checked('laidCa'), comments: document.getElementById('edit-memo').value }]).then(function (st) {
+        applyState(st); toast('Changes saved');
+        if (form.id === 'hist-form') openFrog(v.id); else go({ name: 'use', id: v.id }, true);
+      }).catch(fail);
+    } else if (form.id === 'remove-form') {
+      var rid = +form.dataset.id, reason = checked('removeReason');
+      if (!reason) { toast('Choose a reason'); return; }
+      call('removeFrog', [rid, reason, document.getElementById('remove-note').value]).then(function (st) { applyState(st); go({ name: 'frogs' }); toast('#' + rid + ' removed'); }).catch(fail);
+    } else if (form.id === 'add-form') {
+      var p = S.addPhoto;
+      call('addFrog', [{ arrival: document.getElementById('add-date').value, source: document.getElementById('add-source').value, notes: document.getElementById('add-notes').value, tank: document.getElementById('add-tank').value,
+        photo: p ? { full: p.full, pattern: p.pattern, thumb: p.thumb, emb: '', crop: p.crop } : null }]).then(function (st) {
+        if (p) S.thumbs[st.newId] = p.thumb;
+        S.addPhoto = null; S.tankPhotos = {}; applyState(st); toast('#' + st.newId + ' added'); openFrog(st.newId);
+      }).catch(fail);
+    }
+  });
+
+  document.addEventListener('input', function (e) {
+    if (e.target.id !== 'frog-search') return;
+    var q = e.target.value.replace(/[^0-9]/g, '');
+    Array.prototype.forEach.call(document.querySelectorAll('#frog-list .row'), function (r) { r.hidden = !!q && r.dataset.key.indexOf(q) !== 0; });
+  });
+
+  Matcher.onStatus(function () { if (S.data && S.view.name === 'tank') render(); });
+  render();
+  reload();
+})();
+</script>
+</body>
+</html>

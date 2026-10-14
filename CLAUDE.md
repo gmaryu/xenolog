@@ -12,12 +12,13 @@ This repository is public. **Never add lab data here**: real rosters, frog photo
 - `apps-script/Index.html` – **generated**. Edit `src/` and rebuild.
 - `src/app.js` – page logic. `src/matcher.js` – photo crop and matching. `src/style.css`, `src/body.html`.
 - `src/fakes.js` – in-memory stand-ins for SpreadsheetApp, DriveApp and friends.
+- `src/demo.js` – made-up colony for the public demo. `docs/demo/index.html` is **generated** from it by `build.py`; commit it with the rebuild.
 - `docs/` – GitHub Pages: forwarding page and icons.
 
 ## Commands
 
 ```bash
-cd src && python3 build.py      # writes ../apps-script/Index.html and src/dev.html
+cd src && python3 build.py      # writes ../apps-script/Index.html, src/dev.html and ../docs/demo/index.html
 cd src && node test-server.js   # server logic against in-memory sheets
 ```
 

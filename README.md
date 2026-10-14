@@ -4,6 +4,8 @@ A phone-friendly web app for a *Xenopus laevis* colony. It records which frog wa
 
 It runs as a Google Apps Script web app bound to a spreadsheet. There is no server to maintain.
 
+**Try it:** the [demo](https://gmaryu.github.io/xenolog/demo/) runs the whole app in your browser with a made-up colony. Nothing is saved; reloading starts over. Photos you take there are cropped but not kept.
+
 ## What it does
 
 - **Priming.** Pick a housing tank, photograph the frog you took out, and confirm which of the frogs in that tank it is. Saving marks the frog as in use for everyone at once.
@@ -108,11 +110,13 @@ Sources are in `src/`. `apps-script/Index.html` is generated; do not edit it by 
 
 ```bash
 cd src
-python3 build.py          # writes ../apps-script/Index.html and a local test page, dev.html
+python3 build.py          # writes ../apps-script/Index.html, a local test page (dev.html) and the demo (../docs/demo/)
 node test-server.js       # runs Code.gs against in-memory sheets
 ```
 
 `dev.html` runs the whole app in a normal browser with in-memory data, which is the quickest way to try a change. Serve the folder over http (for example `python3 -m http.server`) because the photo code needs it.
+
+`docs/demo/index.html` is the same page with the made-up colony in `src/demo.js` (dates counted back from today, generated back patterns). It is published with the forwarding page, so rebuild and commit it with every change to `src/` or `Code.gs`.
 
 ## Related work
 
