@@ -309,7 +309,7 @@
       candidates() +
       '<h2>All frogs</h2><label class="field"><span>Find by ID</span><input type="text" inputmode="numeric" id="frog-search" placeholder="e.g. 27"></label><div class="stack" id="frog-list">';
     S.data.frogs.slice().sort(function (a, b) { return (b.inColony - a.inColony) || (a.id - b.id); }).forEach(function (f) {
-      h += '<button class="row" data-act="openFrog" data-id="' + f.id + '" data-key="' + f.id + '" id="frog-' + f.id + '">' + ph(S.thumbs[f.id], 44, f.id) + '<div class="grow"><div class="ttl"><span class="id">#' + f.id + '</span></div><div class="sub">' + (f.inColony ? 'Tank ' + f.tank : 'Removed') + ' · last priming ' + (f.lastPriming || 'never') + (f.quality.score != null ? ' · quality ' + f.quality.score : '') + '</div></div>' + pill(status(f)) + '</button>';
+      h += '<button class="row" data-act="openFrog" data-id="' + f.id + '" data-key="' + f.id + '" id="frog-' + f.id + '">' + ph(S.thumbs[f.id], 44, f.id) + '<div class="grow"><div class="ttl"><span class="id">#' + f.id + '</span></div><div class="sub">' + (f.inColony ? 'Tank ' + f.tank : 'Removed' + (f.removalReason ? ' (' + esc(f.removalReason.toLowerCase()) + ')' : '')) + ' · last priming ' + (f.lastPriming || 'never') + (f.quality.score != null ? ' · quality ' + f.quality.score : '') + '</div></div>' + pill(status(f)) + '</button>';
     });
     return h + '</div>';
   }
@@ -325,7 +325,7 @@
 
   function vFrog(id) {
     var f = frog(id), d = S.detail && S.detail.id === id ? S.detail : null, h = head('#' + id, true);
-    h += '<div class="row static"><div class="grow">' + pill(status(f)) + '<dl class="kv" style="margin-top:8px"><dt>Tank</dt><dd>' + (f.inColony ? 'Tank ' + f.tank : 'Removed' + (f.removedOn ? ' on ' + f.removedOn : '')) + '</dd><dt>Arrived</dt><dd>' + (esc(f.arrival) || '-') + '</dd><dt>Source</dt><dd>' + (esc(f.source) || '-') + '</dd><dt>Last priming</dt><dd>' + (f.lastPriming || 'never') + '</dd><dt>Egg quality</dt><dd>' + (f.quality.score == null ? 'no scored cycle yet' : f.quality.score + ' of 100, from ' + plural(f.quality.recent.length, 'cycle') + ' (' + f.quality.recent.join(', ') + ')') + '</dd>' + (f.notes ? '<dt>Notes</dt><dd>' + esc(f.notes) + '</dd>' : '') + '</dl></div></div>';
+    h += '<div class="row static"><div class="grow">' + pill(status(f)) + '<dl class="kv" style="margin-top:8px"><dt>Tank</dt><dd>' + (f.inColony ? 'Tank ' + f.tank : 'Removed' + (f.removedOn ? ' on ' + f.removedOn : '') + (f.removalReason ? ' (' + esc(f.removalReason.toLowerCase()) + ')' : '')) + '</dd><dt>Arrived</dt><dd>' + (esc(f.arrival) || '-') + '</dd><dt>Source</dt><dd>' + (esc(f.source) || '-') + '</dd><dt>Last priming</dt><dd>' + (f.lastPriming || 'never') + '</dd><dt>Egg quality</dt><dd>' + (f.quality.score == null ? 'no scored cycle yet' : f.quality.score + ' of 100, from ' + plural(f.quality.recent.length, 'cycle') + ' (' + f.quality.recent.join(', ') + ')') + '</dd>' + (f.notes ? '<dt>Notes</dt><dd>' + esc(f.notes) + '</dd>' : '') + '</dl></div></div>';
     if (f.inColony && f.quality.candidate) h += '<div class="alert rest">Replacement candidate: ' + esc(f.quality.reason.charAt(0).toLowerCase() + f.quality.reason.slice(1)) + '.</div>';
     h += '<h2>Photos</h2>';
     if (!d) h += '<p class="note">Loading...</p>';
@@ -338,7 +338,10 @@
     else h += '<div class="scroll"><table><thead><tr><th></th><th>Primed</th><th>Collected</th><th>Score</th><th>Squeezed</th><th>Laid</th><th>Comments</th><th>By</th></tr></thead><tbody>' +
       d.records.map(function (r, n) { return '<tr><td><button class="link" data-act="editHist" data-id="' + n + '" id="hist-' + n + '">Edit</button></td><td>' + (r.priming || '-') + '</td><td>' + (r.collection || (r.state === 'Not used' ? 'not used' : '-')) + '</td><td>' + (r.score == null ? '-' : r.score) + '</td><td>' + esc(egg(r, 'sq')) + '</td><td>' + esc(egg(r, 'laid')) + '</td><td>' + esc(r.comments) + '</td><td>' + esc(r.name) + '</td></tr>'; }).join('') + '</tbody></table></div><p class="note">Egg values are quantity / appearance / after Ca activation.</p>';
     if (f.inColony && !f.open) {
-      if (S.confirm === id) h += '<div class="alert danger">Remove #' + id + ' from the colony? Its records are kept and it is listed as removed.</div><div class="btnrow"><button class="btn danger" data-act="remove" data-id="' + id + '" id="btn-remove-yes">Remove</button><button class="btn ghost" data-act="cancel" id="btn-remove-no">Cancel</button></div>';
+      if (S.confirm === id) h += '<form class="rec" id="remove-form" data-id="' + id + '"><div class="alert danger">Remove #' + id + ' from the colony? Its records are kept and it is listed as removed.</div>' +
+        '<fieldset><legend>Reason</legend>' + segs('removeReason', S.data.removalReasons) + '</fieldset>' +
+        '<label class="field"><span>Note (optional)</span><input type="text" id="remove-note"></label>' +
+        '<div class="btnrow"><button class="btn danger" type="submit" id="btn-remove-yes">Remove</button><button class="btn ghost" type="button" data-act="cancel" id="btn-remove-no">Cancel</button></div></form>';
       else h += '<button class="btn danger" data-act="askRemove" data-id="' + id + '" id="btn-remove">Remove this frog</button>';
     }
     return h;
@@ -503,7 +506,6 @@
     else if (act === 'go') { S.addPhoto = null; go({ name: id }); }
     else if (act === 'askRemove') { S.confirm = +id; render(); }
     else if (act === 'cancel') { S.confirm = null; render(); }
-    else if (act === 'remove') call('removeFrog', [+id]).then(function (st) { applyState(st); go({ name: 'frogs' }); toast('#' + id + ' removed'); }).catch(fail);
     else if (act === 'applyExchange') call('applyExchange', []).then(function (st) { applyState(st); S.tankPhotos = {}; go({ name: 'frogs' }); toast('New tank layout confirmed'); }).catch(fail);
   });
 
@@ -545,6 +547,10 @@
         applyState(st); toast('Changes saved');
         if (form.id === 'hist-form') openFrog(v.id); else go({ name: 'use', id: v.id }, true);
       }).catch(fail);
+    } else if (form.id === 'remove-form') {
+      var rid = +form.dataset.id, reason = checked('removeReason');
+      if (!reason) { toast('Choose a reason'); return; }
+      call('removeFrog', [rid, reason, document.getElementById('remove-note').value]).then(function (st) { applyState(st); go({ name: 'frogs' }); toast('#' + rid + ' removed'); }).catch(fail);
     } else if (form.id === 'add-form') {
       var p = S.addPhoto;
       call('addFrog', [{ arrival: document.getElementById('add-date').value, source: document.getElementById('add-source').value, notes: document.getElementById('add-notes').value, tank: document.getElementById('add-tank').value,

@@ -63,6 +63,7 @@ The top of `Code.gs` has the values most labs will want to change:
 - `APP_NAME`, `FAVICON_URL`
 - `REST_MONTHS` – rest period after a priming
 - `TANK_SIZE` – frogs per housing tank
+- `REMOVAL_REASONS` – the reasons offered when a frog is removed
 - `OPTIONS` – the choices in the record form
 - `QUALITY` – weights and thresholds for the egg-quality score
 

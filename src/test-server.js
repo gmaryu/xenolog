@@ -79,7 +79,10 @@ assert.equal(quality_([]).score, null); console.log('quality #119', JSON.stringi
 // frogs
 assert.throws(() => addFrog({ tank: 1 }), /is full/);
 st = addFrog({ tank: 6, arrival: 'Oct 2026', source: 'X', notes: '', photo }); assert.equal(st.newId, 138); assert.equal(F(138).tank, 6); assert.equal(F(138).photos, 1);
-st = removeFrog(17); assert.equal(F(17).inColony, false);
+assert.throws(() => removeFrog(17), /Choose why/); assert.throws(() => removeFrog(17, 'Bored'), /Choose why/);
+st = removeFrog(17, 'Escaped', 'found the lid open'); assert.equal(F(17).inColony, false); assert.equal(F(17).removalReason, 'Escaped'); assert.equal(F(17).removedOn, '2026-10-13'); assert.equal(F(17).notes, 'found the lid open');
+assert.deepEqual(st.removalReasons, ['Died', 'Escaped', 'Euthanized', 'Other']); assert.equal(FAKE.book.sheets['Frogs'].data[0][9], 'Removal reason');
+FAKE.book.sheets['Frogs'].data[0].pop(); setup(); assert.equal(FAKE.book.sheets['Frogs'].data[0][9], 'Removal reason');   // heading is restored on an older sheet
 st = applyExchange(); assert.equal(F(20).tank, 2); assert.equal(F(21).tank, 2); assert.equal(F(22).tank, 2); assert.equal(F(23).tank, 3); assert.equal(F(138).tank, 6);
 assert.equal(st.frogs.filter(f => f.inColony).length, 17);
 console.log('ALL SERVER TESTS PASSED');

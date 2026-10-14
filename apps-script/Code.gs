@@ -13,13 +13,14 @@ const APP_NAME = 'XenoLog';   // browser tab title and the name of the spreadshe
 const FAVICON_URL = '';            // optional: public https link to a PNG shown in the browser tab
 const REST_MONTHS = 3;             // months a frog rests after a priming
 const TANK_SIZE = 3;               // frogs per housing tank
+const REMOVAL_REASONS = ['Died', 'Escaped', 'Euthanized', 'Other'];   // offered when a frog is removed from the colony
 const PHOTOS_PER_FROG = 5;      // newest photos sent to the page for comparison
 const CELL_LIMIT = 49000;       // Sheets refuses cells over 50,000 characters
 
 const SHEETS = { FROGS: 'Frogs', RECORDS: 'Records', PHOTOS: 'Photos', MATCH: 'Match log', ULAM: 'ULAM view', CHECK: 'Import check' };
 const LEGACY = { FORM: 'Form Responses 1', ULAM: 'Shared with ULAM' };
 
-const FROG_COLS = ['Animal ID', 'Status', 'Tank', 'Arrival date', 'Source', 'Notes', 'Removed on', 'Updated at', 'Updated by'];
+const FROG_COLS = ['Animal ID', 'Status', 'Tank', 'Arrival date', 'Source', 'Notes', 'Removed on', 'Updated at', 'Updated by', 'Removal reason'];
 const REC_COLS = ['Record ID', 'Animal ID', 'Priming Date', 'Collection Date', 'Name', 'MMR H2O source',
   'Quantity (Squeezed Eggs)', 'Appearance (Squeezed Eggs)', 'After Ca activation (Squeezed Eggs)',
   'Quantity (Laid Eggs)', 'Appearance (Laid Eggs)', 'After Ca activation (Laid Eggs)', 'Comments',
@@ -121,7 +122,7 @@ function body_(sh, cols) {
 function readFrogs_() {
   return body_(sheet_(SHEETS.FROGS), FROG_COLS.length).map(function (r, i) {
     return { row: i + 2, id: Number(r[0]), inColony: s_(r[1]) === 'In colony', tank: r[2] === '' ? '' : Number(r[2]),
-      arrival: d_(r[3]), source: s_(r[4]), notes: s_(r[5]), removedOn: d_(r[6]) };
+      arrival: d_(r[3]), source: s_(r[4]), notes: s_(r[5]), removedOn: d_(r[6]), removalReason: s_(r[9]) };
   }).filter(function (f) { return f.id > 0; });
 }
 
@@ -193,13 +194,13 @@ function buildState_(withThumbs) {
   const count = {}, newest = {};
   photoIndex_().forEach(function (p) { count[p.frog] = (count[p.frog] || 0) + 1; newest[p.frog] = p.row; });
   const frogs = readFrogs_().map(function (f) {
-    const o = { id: f.id, inColony: f.inColony, tank: f.tank, arrival: f.arrival, source: f.source, notes: f.notes, removedOn: f.removedOn,
+    const o = { id: f.id, inColony: f.inColony, tank: f.tank, arrival: f.arrival, source: f.source, notes: f.notes, removedOn: f.removedOn, removalReason: f.removalReason,
       lastPriming: last[f.id] || '', restUntil: last[f.id] ? addMonths_(last[f.id], REST_MONTHS) : '', open: open[f.id] || null,
       photos: count[f.id] || 0, quality: quality_(scored[f.id] || []) };
     if (withThumbs && f.inColony && newest[f.id]) o.thumb = photoCells_(newest[f.id]).thumb;
     return o;
   });
-  return { user: user_(), today: today, restMonths: REST_MONTHS, tankSize: TANK_SIZE, appName: APP_NAME, options: OPTIONS, frogs: frogs,
+  return { user: user_(), today: today, restMonths: REST_MONTHS, tankSize: TANK_SIZE, appName: APP_NAME, options: OPTIONS, removalReasons: REMOVAL_REASONS, frogs: frogs,
     qualityRule: { squeezed: Math.round(QUALITY.squeezedWeight * 100), cycles: QUALITY.cycles, threshold: QUALITY.threshold, firstThreshold: QUALITY.firstThreshold } };
 }
 
@@ -409,15 +410,19 @@ function addFrog(f) {
   });
 }
 
-function removeFrog(frogId) {
+/** reason: one of REMOVAL_REASONS. note: optional free text, added to the frog's Notes. */
+function removeFrog(frogId, reason, note) {
   return withLock_(function () {
     frogId = Number(frogId);
+    reason = pick_(reason, REMOVAL_REASONS);
+    if (!reason) throw new Error('Choose why the frog is being removed.');
     const f = readFrogs_().filter(function (x) { return x.id === frogId; })[0];
     if (!f) throw new Error('Frog not found.');
     if (readRecords_().some(function (r) { return r.frog === frogId && isOpen_(r); })) throw new Error('#' + frogId + ' is in use. Return it first.');
     const sh = sheet_(SHEETS.FROGS);
     sh.getRange(f.row, 2, 1, 2).setValues([['Removed', '']]);
-    sh.getRange(f.row, 7, 1, 3).setValues([[today_(), now_(), user_()]]);
+    if (s_(note)) sh.getRange(f.row, 6).setValue(f.notes ? f.notes + '; ' + s_(note) : s_(note));
+    sh.getRange(f.row, 7, 1, 4).setValues([[today_(), now_(), user_(), reason]]);
     return buildState_(false);
   });
 }
@@ -466,12 +471,16 @@ function ensureSheet_(name, cols, textCols) {
     sh.setFrozenRows(1);
     // Plain text keeps dates as yyyy-mm-dd and stops Sheets from reinterpreting IDs and image data.
     (textCols || []).forEach(function (c) { sh.getRange(1, c, sh.getMaxRows(), 1).setNumberFormat('@'); });
+  } else {
+    // A sheet made by an earlier version: add the headings of columns that were introduced since.
+    const have = sh.getRange(1, 1, 1, cols.length).getValues()[0];
+    cols.forEach(function (c, i) { if (s_(have[i]) === '') sh.getRange(1, i + 1).setValue(c); });
   }
   return sh;
 }
 
 function setup() {
-  const frogs = ensureSheet_(SHEETS.FROGS, FROG_COLS, [4, 5, 6, 7, 8, 9]);
+  const frogs = ensureSheet_(SHEETS.FROGS, FROG_COLS, [4, 5, 6, 7, 8, 9, 10]);
   ensureSheet_(SHEETS.RECORDS, REC_COLS, [1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]);
   ensureSheet_(SHEETS.PHOTOS, PHOTO_COLS, [1, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
   ensureSheet_(SHEETS.MATCH, MATCH_COLS, [1, 2, 7]);
@@ -479,7 +488,7 @@ function setup() {
   ensureSheet_(SHEETS.CHECK, CHECK_COLS, [5]);
   if (frogs.getLastRow() === 1 && typeof ROSTER !== 'undefined') {
     const stamp = now_();
-    const rows = ROSTER.map(function (r) { return [r[0], r[1] ? 'In colony' : 'Removed', r[1] ? r[2] : '', r[3], r[4], r[5], '', stamp, 'setup']; });
+    const rows = ROSTER.map(function (r) { return [r[0], r[1] ? 'In colony' : 'Removed', r[1] ? r[2] : '', r[3], r[4], r[5], '', stamp, 'setup', '']; });
     frogs.getRange(2, 1, rows.length, FROG_COLS.length).setValues(rows);
   }
   folder_();
