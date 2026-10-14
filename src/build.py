@@ -33,6 +33,7 @@ bridge = """(function () {
         var args = JSON.parse(JSON.stringify(Array.prototype.slice.call(arguments)));
         setTimeout(function () {
           var res;
+          if (window.beforeServer) window.beforeServer();
           try { res = window[name].apply(null, args); } catch (e) { if (fail) fail(e); return; }
           if (ok) ok(res === undefined ? null : JSON.parse(JSON.stringify(res)));
         }, 60);
@@ -58,6 +59,10 @@ setup(); importLegacy();
 # The demo bar is moved above #app, so it shows at the top of the page.
 demo = """<div class="demo" id="demo-bar" style="max-width:520px;margin:0 auto;padding:8px 16px;box-sizing:border-box">
 <span>Demo with a made-up colony. Nothing is saved.</span><a class="link" href="" id="demo-reset" style="white-space:nowrap">Start over</a></div>
+<div id="demo-picker" hidden></div>
+<style>#demo-picker { position: fixed; inset: 0; z-index: 8; background: var(--bg); overflow-y: auto; }
+#demo-picker .crop-in { max-width: 520px; margin: 0 auto; padding-inline: 16px; padding-block: 0 24px; display: flex; flex-direction: column; gap: 12px; }
+#demo-picker .btnrow { flex-wrap: wrap; }</style>
 <script>
 """ + r('fakes.js') + """</script>
 <script>
@@ -65,7 +70,7 @@ demo = """<div class="demo" id="demo-bar" style="max-width:520px;margin:0 auto;p
 <script>
 document.body.insertBefore(document.getElementById('demo-bar'), document.body.firstChild);
 FAKE.user = 'demo@example.org';
-setup(); demoSeed();
+window.beforeServer = function () { window.beforeServer = null; setup(); demoSeed(); };
 """ + bridge + """</script>
 """
 sizes = [(gs / 'Index.html').stat().st_size, (d / 'dev.html').stat().st_size]

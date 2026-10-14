@@ -4,7 +4,7 @@ A phone-friendly web app for a *Xenopus laevis* colony. It records which frog wa
 
 It runs as a Google Apps Script web app bound to a spreadsheet. There is no server to maintain.
 
-**Try it:** the [demo](https://gmaryu.github.io/xenolog/demo/) runs the whole app in your browser with a made-up colony. Nothing is saved; reloading starts over. Photos you take there are cropped but not kept.
+**Try it:** the [demo](https://gmaryu.github.io/xenolog/demo/) runs the whole app in your browser with a made-up colony. Nothing is saved; reloading starts over. "Photograph the frog" there offers made-up photos of the frogs in the tank (or of a frog from another tank), each turned, moved and lit differently, so the crop screen and the pattern check can be tried without a frog. The camera works too; its photos are not kept.
 
 ## What it does
 
@@ -116,7 +116,7 @@ node test-server.js       # runs Code.gs against in-memory sheets
 
 `dev.html` runs the whole app in a normal browser with in-memory data, which is the quickest way to try a change. Serve the folder over http (for example `python3 -m http.server`) because the photo code needs it.
 
-`docs/demo/index.html` is the same page with the made-up colony in `src/demo.js` (dates counted back from today, generated back patterns). It is published with the forwarding page, so rebuild and commit it with every change to `src/` or `Code.gs`.
+`docs/demo/index.html` is the same page with the made-up colony in `src/demo.js` (dates counted back from today, drawn frogs with generated back patterns). It is published with the forwarding page, so rebuild and commit it with every change to `src/` or `Code.gs`. The drawn photos are made so that the pattern check behaves as on real photos: in a run of 630 different-frog pairs no pair reached 8 points, and the same frog gave 149 or more. A plain or finely speckled background broke this (different frogs reached 20 to 50 points, because the check boosts contrast before looking), so keep the uneven tray if the drawing is changed, and measure again.
 
 ## Related work
 
