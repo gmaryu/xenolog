@@ -344,7 +344,7 @@
     h += '<h2>Photos</h2>';
     if (!d) h += '<p class="note">Loading...</p>';
     else if (!d.photos.length) h += '<p class="note">No photos yet.</p>';
-    else h += '<div class="cmp">' + d.photos.map(function (p, n) { return '<figure>' + bigPh(p.pattern, 'Photo of #' + id, 'Preparing this photo...') + '<figcaption>' + p.date + ' · ' + esc(p.kind) + (p.crop === 'auto' || p.crop === 'centre' ? ' · automatic crop, not checked' : '') + (p.pattern ? ' <button class="link" data-act="recrop" data-id="' + n + '" id="recrop-' + n + '">Adjust crop</button>' : '') + '</figcaption></figure>'; }).join('') + '</div>';
+    else h += '<div class="cmp">' + d.photos.map(function (p, n) { return '<figure>' + bigPh(p.pattern, 'Photo of #' + id, 'Preparing this photo...') + '<figcaption>' + p.date + ' · ' + esc(p.kind) + (p.crop === 'auto' || p.crop === 'centre' ? ' · automatic crop, not checked' : '') + (p.pattern ? ' <button class="link" data-act="recrop" data-id="' + n + '" id="recrop-' + n + '">Adjust crop</button>' : '') + ' <button class="link" data-act="askRemovePhoto" data-id="' + n + '" id="rmphoto-' + n + '">Remove</button>' + '</figcaption>' + (S.confirm === 'photo' + p.photoId ? '<div class="alert danger">Remove this photo from #' + id + '? It is no longer shown or used by the pattern check. The file stays in Drive.</div><div class="btnrow"><button class="btn danger" data-act="removePhoto" data-id="' + n + '" id="rmphoto-yes">Remove photo</button><button class="btn ghost" data-act="cancel" id="rmphoto-no">Keep it</button></div>' : '') + '</figure>'; }).join('') + '</div>';
     if (f.inColony) h += '<label class="btn ghost" for="file-lib" data-act="fileCtx" data-kind="addPhoto" data-id="' + id + '" id="btn-add-photo">Add a photo</label>';
     h += '<h2>Use history</h2>';
     if (!d) h += '<p class="note">Loading...</p>';
@@ -516,6 +516,16 @@
     else if (act === 'openFrog') openFrog(+id);
     else if (act === 'editHist') go({ name: 'hist', id: v.id, n: +id });
     else if (act === 'recrop') recrop(v.id, S.detail.photos[+id]);
+    else if (act === 'askRemovePhoto') { S.confirm = 'photo' + S.detail.photos[+id].photoId; render(); }
+    else if (act === 'removePhoto') {
+      var fid = v.id, rp = S.detail.photos[+id];
+      call('removePhoto', [fid, rp.photoId]).then(function (d) {
+        S.confirm = null; setDetail(d); delete S.tankPhotos[frog(fid).tank]; frog(fid).photos = d.photos.length;
+        if (rp.last) delete S.thumbs[fid];
+        if (S.detail.photos.length) S.thumbs[fid] = S.detail.photos[S.detail.photos.length - 1].thumb || S.thumbs[fid];
+        render(); toast('Photo removed');
+      }).catch(fail);
+    }
     else if (act === 'go') { S.addPhoto = null; go({ name: id }); }
     else if (act === 'askRemove') { S.confirm = +id; render(); }
     else if (act === 'cancel') { S.confirm = null; render(); }

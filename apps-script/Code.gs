@@ -172,7 +172,7 @@ function publicRecord_(r) { const o = {}; Object.keys(r).forEach(function (k) { 
 function photoIndex_() {
   return body_(sheet_(SHEETS.PHOTOS), 4).map(function (r, i) {
     return { row: i + 2, photoId: s_(r[0]), frog: Number(r[1]), date: d_(r[2]), kind: s_(r[3]) };
-  }).filter(function (p) { return p.photoId !== '' && p.kind !== 'cancelled'; });
+  }).filter(function (p) { return p.photoId !== '' && p.kind !== 'cancelled' && p.kind !== 'removed'; });
 }
 
 function photoCells_(row) {
@@ -260,6 +260,19 @@ function savePhotoDerived(list) {
       if (hit) sh.getRange(hit.row, 6, 1, 4).setValues([[fit_(d.thumb), fit_(d.pattern), fit_(d.emb), s_(d.crop)]]);
     });
     return true;
+  });
+}
+
+/**
+ * Takes a photo out of the app, for example one that turned out to show a different frog.
+ * The row and the Drive file stay; Kind becomes "removed", so it is no longer shown or compared.
+ */
+function removePhoto(frogId, photoId) {
+  return withLock_(function () {
+    const hit = photoIndex_().filter(function (p) { return p.photoId === photoId && p.frog === Number(frogId); })[0];
+    if (!hit) throw new Error('Photo not found. Reload the page and try again.');
+    sheet_(SHEETS.PHOTOS).getRange(hit.row, 4).setValue('removed');
+    return getFrogDetail(frogId);
   });
 }
 

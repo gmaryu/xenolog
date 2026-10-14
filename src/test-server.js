@@ -61,6 +61,11 @@ st = updateRecord(rid, { sqCa: 'Looking good', laidCa: '', comments: 'after retu
 let det = getFrogDetail(10); assert.equal(det.records[0].comments, 'after return'); assert.equal(det.records[0].state, 'Returned'); assert.equal(det.records.length, 2); assert.equal(det.photos.length, 1);
 st = returnFrog(F(11).open.id); det = getFrogDetail(11); assert.equal(det.records[0].state, 'Not used'); assert.equal(F(11).restUntil, '2027-01-13');
 const ul = FAKE.book.sheets['ULAM view'].data; assert.ok(ul.some(r => r[0] === 10 && r[4] === '2026-10-15' && r[1] === 1 && r[12] === 'after return'));
+// remove a photo that shows the wrong frog
+const p10 = getFrogDetail(10).photos.length; addPhoto(10, photo); let d10 = getFrogDetail(10); assert.equal(d10.photos.length, p10 + 1);
+const wrong = d10.photos[d10.photos.length - 1].photoId; d10 = removePhoto(10, wrong); assert.equal(d10.photos.length, p10);
+assert.ok(!getTankPhotos([10])[10].some(p => p.photoId === wrong)); assert.throws(() => removePhoto(10, wrong), /not found/); assert.throws(() => removePhoto(11, d10.photos[0].photoId), /not found/);
+assert.equal(FAKE.book.sheets['Photos'].data.find(r => r[0] === wrong)[3], 'removed');
 // cancel a priming entered by mistake
 st = savePriming({ items: [{ id: 20, photo, match: null }, { id: 21, photo: null, match: null }] });
 assert.equal(F(20).photos, 1); assert.equal(F(20).restUntil, '2027-01-13');

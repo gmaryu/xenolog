@@ -80,7 +80,7 @@ You can also use the page published from the original repository instead of your
 
 ### Existing photos (optional)
 
-Put image files named after the frog (`125.jpg`, `125 back.png`) into the `import` folder inside "XenoLog photos", then run **Import photos from Drive folder**. Open each frog once in the app and use **Adjust crop** to check the crop. If you want to keep photos in a folder you made yourself, run **Choose photo folder** first.
+Put image files named after the frog (`125.jpg`, `125 back.png`) into the `import` folder inside "XenoLog photos", then run **Import photos from Drive folder**. Open each frog once in the app and use **Adjust crop** to check the crop. If a photo turns out to show a different frog, use **Remove** under it; it stops being shown or compared, and the file stays in Drive. If you want to keep photos in a folder you made yourself, run **Choose photo folder** first.
 
 ### Legacy records (optional)
 
