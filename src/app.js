@@ -46,14 +46,15 @@
     var p = present(t), ok = p.filter(function (f) { return status(f).k === 'ok'; }).length;
     return { t: t, all: inTank(t), present: p, ok: ok, kind: ok === 0 ? 2 : (ok < p.length ? 0 : 1) };
   }
-  // Frogs are used in tank order, then ID order. The suggestion is the first available frog after the one primed last
-  // (the last one picked today, else the last saved), going round to Tank 1 after the last tank.
+  // The next frog to use: the one that has rested longest (never primed counts as longest). Frogs primed up to
+  // sameCycleDays later count as the same cycle and are taken in tank order, then ID order, so small shifts even out.
   function nextFrog() {
-    var list = colony().filter(function (f) { return f.tank; }).sort(function (a, b) { return a.tank - b.tank || a.id - b.id; });
-    var lastId = S.basket.length ? S.basket[S.basket.length - 1].id : S.data.lastPrimed, at = -1;
-    list.forEach(function (f, n) { if (f.id === lastId) at = n; });
-    for (var i = 1; i <= list.length; i++) { var f = list[(at + i) % list.length]; if (status(f).k === 'ok') return f; }
-    return null;
+    var ok = colony().filter(function (f) { return f.tank && status(f).k === 'ok'; });
+    if (!ok.length) return null;
+    var oldest = ok.reduce(function (m, f) { return f.lastPriming < m ? f.lastPriming : m; }, ok[0].lastPriming);
+    var f = ok.filter(function (f) { return oldest === '' ? f.lastPriming === '' : daysBetween(oldest, f.lastPriming) <= S.data.sameCycleDays; })
+      .sort(function (a, b) { return a.tank - b.tank || a.id - b.id; })[0];
+    return { frog: f, oldest: oldest };
   }
   function refs(t, id) { return (S.tankPhotos[t] && S.tankPhotos[t][id]) || []; }
   function ranked(t) {
@@ -220,7 +221,7 @@
       (sub ? '<div class="sub">' + sub + '</div>' : '') + '</div><div class="count" title="available / in tank">' + i.ok + '/' + i.present.length + '</div></button>';
   }
   function vTanks() {
-    var infos = tankNos().map(tankInfo), next = nextFrog(), at = 0;
+    var infos = tankNos().map(tankInfo), nx = nextFrog(), next = nx && nx.frog;
     var h = head('Priming') + who();
     h += '<div class="basket"><div><strong>Today\'s priming</strong> <span class="count">' + plural(S.basket.length, 'frog') + '</span></div>';
     if (S.basket.length) {
@@ -230,12 +231,10 @@
     h += '</div>';
     if (S.shot) h += '<div class="row static">' + ph(S.shot.thumb, 40, 'new') + '<div class="grow"><div class="ttl">Photo not used yet</div><div class="sub">Taken while Tank ' + S.shot.takenIn + ' was open. Open the tank this frog came from to compare it there.</div></div><button class="link" data-act="dropShot" id="btn-drop-shot">Discard</button></div>';
     if (next) {
-      infos.forEach(function (i, n) { if (i.t === next.tank) at = n; });
-      infos = infos.slice(at).concat(infos.slice(0, at));
-      h += '<h2>Next: #' + next.id + ' in Tank ' + next.tank + '</h2><div class="stack">' + tankRow(infos[0], next) + '</div>';
-      h += '<p class="note">Frogs are used in tank order, then ID order, after the frog primed last. Any available frog can be used.</p>';
-      infos = infos.slice(1);
-      if (infos.length) h += '<h2>Then, in tank order</h2>';
+      h += '<h2>Next: #' + next.id + ' in Tank ' + next.tank + '</h2><div class="stack">' + tankRow(infos.filter(function (i) { return i.t === next.tank; })[0], next) + '</div>';
+      h += '<p class="note">' + (nx.oldest ? 'Longest rest: last priming ' + nx.oldest + '. Frogs primed up to ' + plural(S.data.sameCycleDays, 'day') + ' after that are taken in tank order, then ID order.' : 'Never primed. Frogs never primed come first, in tank order, then ID order.') + ' Any available frog can be used.</p>';
+      infos = infos.filter(function (i) { return i.t !== next.tank; });
+      if (infos.length) h += '<h2>Other tanks</h2>';
     } else h += '<p class="note">No frog is available right now.</p><h2>Tanks</h2>';
     h += '<div class="stack">' + infos.map(function (i) { return tankRow(i, null); }).join('') + '</div>';
     return h;

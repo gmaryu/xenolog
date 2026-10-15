@@ -16,6 +16,7 @@ const DEFAULTS = {
   faviconUrl: '',                // optional: public https link to a PNG shown in the browser tab
   restMonths: 3,                 // months a frog rests after a priming
   tankSize: 3,                   // frogs per housing tank
+  sameCycleDays: 14,             // next frog: those primed up to this many days after the longest-rested one are used in tank order, then ID order
   removalReasons: ['Died', 'Escaped', 'Euthanized', 'Other'],   // offered when a frog is removed from the colony
   recordTiming: true,            // false stops the Timing sheet: how long each step of a priming took, per person (see README)
   // Choices offered in the record form, least to most favourable.
@@ -201,13 +202,13 @@ function photoCells_(row) {
 
 function buildState_(withThumbs) {
   const today = today_();
-  const last = {}, lastRow = {}, open = {}, scored = {};
+  const last = {}, open = {}, scored = {};
   readRecords_().forEach(function (r) {
     if (r.state === 'Cancelled') return;                 // entered by mistake: does not count as a use
     const cs = cycleScore_(r);
     if (cs !== null) (scored[r.frog] = scored[r.frog] || []).push({ date: r.collection, score: cs });
     const used = r.priming || r.collection;
-    if (used && used <= today && (!last[r.frog] || used >= last[r.frog])) { last[r.frog] = used; lastRow[r.frog] = r.row; }
+    if (used && used <= today && (!last[r.frog] || used > last[r.frog])) last[r.frog] = used;
     if (isOpen_(r)) open[r.frog] = publicRecord_(r);
   });
   const count = {}, newest = {};
@@ -219,13 +220,8 @@ function buildState_(withThumbs) {
     if (withThumbs && f.inColony && newest[f.id]) o.thumb = photoCells_(newest[f.id]).thumb;
     return o;
   });
-  // The frog in the colony primed most recently (same day: the later row). The page starts its suggestion after it.
-  let lastPrimed = null;
-  frogs.forEach(function (f) {
-    if (f.inColony && last[f.id] && (!lastPrimed || last[f.id] > last[lastPrimed] || (last[f.id] === last[lastPrimed] && lastRow[f.id] > lastRow[lastPrimed]))) lastPrimed = f.id;
-  });
   const Q = setting_('quality');
-  return { user: user_(), today: today, lastPrimed: lastPrimed, recordTiming: setting_('recordTiming'), restMonths: setting_('restMonths'), tankSize: setting_('tankSize'), appName: setting_('appName'),
+  return { user: user_(), today: today, recordTiming: setting_('recordTiming'), restMonths: setting_('restMonths'), tankSize: setting_('tankSize'), sameCycleDays: setting_('sameCycleDays'), appName: setting_('appName'),
     options: setting_('options'), removalReasons: setting_('removalReasons'), frogs: frogs,
     qualityRule: { squeezed: Math.round(Q.squeezedWeight * 100), cycles: Q.cycles, threshold: Q.threshold, firstThreshold: Q.firstThreshold } };
 }

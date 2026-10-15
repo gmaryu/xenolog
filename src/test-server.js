@@ -34,7 +34,6 @@ const F = id => st.frogs.find(f => f.id === id);
 assert.equal(st.user, 'tester'); assert.equal(st.frogs.filter(f => f.inColony).length, 17);
 assert.equal(F(15).restUntil, '2027-01-02'); assert.equal(F(10).lastPriming, '2026-03-24'); assert.equal(F(10).restUntil, '2026-06-24');
 assert.equal(F(119).restUntil, '2026-10-15'); assert.equal(F(130).restUntil, '2026-12-26'); assert.equal(F(61).lastPriming, '');
-assert.equal(st.lastPrimed, 15);   // the most recent use among frogs in the colony
 console.log('Vet view rows:', FAKE.book.sheets['Vet view'].data.length - 1, FAKE.book.sheets['Vet view'].data[1].join(','));
 // priming
 assert.throws(() => savePriming({ items: [{ id: 15 }] }), /resting until 2027-01-02/);
@@ -89,7 +88,7 @@ assert.deepEqual(SETTINGS, DEFAULTS);   // the example Settings.gs lists every s
 }
 { // no Settings.gs at all (a deployment that only replaced Code.gs): the defaults
   const run = withSettings(null);
-  assert.equal(run('getState().tankSize'), 3); assert.deepEqual(run('getState().options'), DEFAULTS.options);
+  assert.equal(run('getState().tankSize'), 3); assert.equal(run('getState().sameCycleDays'), 14); assert.deepEqual(run('getState().options'), DEFAULTS.options);
 }
 { // renamed choices with their own values: the score uses the highest value given, not a fixed 4 and 3
   const run = withSettings({ quality: { appearance: { 'Top': 10, 'Low': 5, 'None': 0 }, quantity: { 'Lots': 2, 'Some': 1, 'None': 0 } } });
@@ -119,11 +118,9 @@ assert.equal(FAKE.book.sheets['Photos'].data.find(r => r[0] === wrong)[3], 'remo
 // cancel a priming entered by mistake
 st = savePriming({ items: [{ id: 20, photo, match: null }, { id: 21, photo: null, match: null }] });
 assert.equal(F(20).photos, 1); assert.equal(F(20).restUntil, '2027-01-13');
-assert.equal(st.lastPrimed, 21);   // same day: the later row
 st = cancelPriming(F(20).open.id); assert.equal(F(20).open, null); assert.equal(F(20).restUntil, ''); assert.equal(F(20).photos, 0); assert.equal(getThumbs()[20], undefined);
 assert.equal(getFrogDetail(20).records.length, 0); assert.equal(getFrogDetail(20).photos.length, 0);
-assert.equal(st.lastPrimed, 21);
-st = savePriming({ items: [{ id: 20, photo: null, match: null }] }); assert.equal(F(20).open.state, 'In use'); assert.equal(st.lastPrimed, 20); st = returnFrog(F(20).open.id);
+st = savePriming({ items: [{ id: 20, photo: null, match: null }] }); assert.equal(F(20).open.state, 'In use'); st = returnFrog(F(20).open.id);
 const r21 = F(21).open.id; saveRecord(r21, { collection: '2026-10-14' }); assert.throws(() => cancelPriming(r21), /Only a priming without an egg record/); st = returnFrog(r21);
 // egg quality
 assert.equal(typeScore_('Great', 'Many'), 1); assert.equal(typeScore_('None', 'Many'), 0); assert.equal(typeScore_('', ''), null); assert.equal(typeScore_('good', 'Few'), 1 / 3);
