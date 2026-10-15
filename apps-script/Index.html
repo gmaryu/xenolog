@@ -521,11 +521,21 @@ var Matcher = (function () {
     var at = best === null ? null : tanks[best];
     return { list: list, start: at === null ? 0 : list.map(function (f) { return f.tank; }).indexOf(at), at: at };
   }
-  // The next primingBatch frogs of the round, less those already in today's priming (at least one).
+  // A frog skipped when its tank's turn came: it was already available (rest over, or there before) on the latest
+  // priming of a tank-mate, yet was not used. It goes before the round; a frog that was resting then waits.
+  function skipped(f) {
+    var last = '';
+    inTank(f.tank).forEach(function (g) { if (g !== f && g.lastPriming > last) last = g.lastPriming; });
+    return last !== '' && (f.lastPriming ? f.restUntil : f.arrival) <= last;
+  }
+  // The next primingBatch frogs, less those already in today's priming (at least one): skipped frogs first, in tank
+  // order, then the round.
   function nextFrogs() {
-    var r = round(), picks = [], n = Math.max(1, S.data.primingBatch - S.basket.length);
-    for (var k = 0; k < r.list.length && picks.length < n; k++) { var f = r.list[(r.start + k) % r.list.length]; if (status(f).k === 'ok') picks.push(f); }
-    return { frogs: picks, at: r.at };
+    var r = round(), n = Math.max(1, S.data.primingBatch - S.basket.length);
+    var ok = function (f) { return status(f).k === 'ok'; };
+    var late = r.list.filter(function (f) { return ok(f) && skipped(f); }), picks = late.slice(0, n);
+    for (var k = 0; k < r.list.length && picks.length < n; k++) { var f = r.list[(r.start + k) % r.list.length]; if (ok(f) && picks.indexOf(f) < 0) picks.push(f); }
+    return { frogs: picks, late: late.filter(function (f) { return picks.indexOf(f) >= 0; }), at: r.at };
   }
   function refs(t, id) { return (S.tankPhotos[t] && S.tankPhotos[t][id]) || []; }
   function ranked(t) {
@@ -706,7 +716,7 @@ var Matcher = (function () {
       next.forEach(function (f) { if (nt.indexOf(f.tank) < 0) nt.push(f.tank); });
       h += '<h2>Next ' + next.length + ': ' + nt.map(function (t) { var c = next.filter(function (f) { return f.tank === t; }).length; return c + ' from Tank ' + t; }).join(', ') + '</h2><div class="stack">' +
         nt.map(function (t) { return tankRow(infos.filter(function (i) { return i.t === t; })[0], next); }).join('') + '</div>';
-      h += '<p class="note">Tank order' + (nx.at ? ', continuing the round at Tank ' + nx.at : ', from Tank 1') + '. Within a tank, any available frog will do; the marked ones are only a suggestion. A frog resting when its tank\'s turn comes waits for the next round.</p>';
+      h += '<p class="note">' + (nx.late.length ? nx.late.map(function (f) { return '#' + f.id; }).join(', ') + (nx.late.length > 1 ? ' were' : ' was') + ' skipped when ' + (nx.late.length > 1 ? 'their tanks were' : 'its tank was') + ' last used, so ' + (nx.late.length > 1 ? 'they come' : 'it comes') + ' first. ' : '') + 'Tank order' + (nx.at ? ', continuing the round at Tank ' + nx.at : ', from Tank 1') + '. Within a tank, any available frog will do; the marked ones are only a suggestion. A frog resting when its tank\'s turn comes waits for the next round.</p>';
       infos = infos.filter(function (i) { return nt.indexOf(i.t) < 0; });
       if (infos.length) h += '<h2>Other tanks</h2>';
     } else h += '<p class="note">No frog is available right now.</p><h2>Tanks</h2>';
