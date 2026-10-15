@@ -67,9 +67,12 @@
     var at = best === null ? null : tanks[best];
     return { list: list, start: at === null ? 0 : list.map(function (f) { return f.tank; }).indexOf(at), at: at };
   }
-  // A frog skipped when its tank's turn came: it was already available (rest over, or there before) on the latest
-  // priming of a tank-mate, yet was not used. It goes before the round; a frog that was resting then waits.
-  function skipped(f) {
+  // A frog skipped when its tank's turn came in this round: its tank comes before the tank the round is at (a round
+  // runs from Tank 1 to the last tank), and it was already available (rest over, or there before) on the latest
+  // priming of a tank-mate, yet was not used. It goes before the round; a frog that was resting then waits. Frogs in
+  // the tank the round is at, or in tanks still to come, are left to the round.
+  function skipped(f, at) {
+    if (at === null || f.tank >= at) return false;
     var last = '';
     inTank(f.tank).forEach(function (g) { if (g !== f && g.lastPriming > last) last = g.lastPriming; });
     return last !== '' && (f.lastPriming ? f.restUntil : f.arrival) <= last;
@@ -79,7 +82,7 @@
   function nextFrogs() {
     var r = round(), n = Math.max(1, S.data.primingBatch - S.basket.length);
     var ok = function (f) { return status(f).k === 'ok'; };
-    var late = r.list.filter(function (f) { return ok(f) && skipped(f); }), picks = late.slice(0, n);
+    var late = r.list.filter(function (f) { return ok(f) && skipped(f, r.at); }), picks = late.slice(0, n);
     for (var k = 0; k < r.list.length && picks.length < n; k++) { var f = r.list[(r.start + k) % r.list.length]; if (ok(f) && picks.indexOf(f) < 0) picks.push(f); }
     return { frogs: picks, late: late.filter(function (f) { return picks.indexOf(f) >= 0; }), at: r.at };
   }
