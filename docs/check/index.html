@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>XenoLog roster check</title>
+<link rel="icon" href="../favicon-32.png">
+<style>
+/* Layout: one phone-width column, a sticky header, a fixed bottom tab bar; each screen is a short stack of rows. */
+:root {
+  --bg: #eef2f1;
+  --surface: #ffffff;
+  --line: #d3dcda;
+  --fg: #14282a;
+  --muted: #5a6f70;
+  --accent: #0f6e73;
+  --accent-fg: #ffffff;
+  --ok: #1f7a45;      --ok-bg: #dff1e6;
+  --rest: #8a5a00;    --rest-bg: #f8ebcc;
+  --use: #2b53a8;     --use-bg: #dfe7f8;
+  --danger: #a8322b;  --danger-bg: #f8e0de;
+  --font-body: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --font-id: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1819; --surface: #172526; --line: #2b3d3e; --fg: #e3eceb; --muted: #93a8a8;
+    --accent: #4fb8bd; --accent-fg: #06201f;
+    --ok: #7ed3a0; --ok-bg: #173524; --rest: #e8c26a; --rest-bg: #3a2e10;
+    --use: #9db8f2; --use-bg: #1b2a4a; --danger: #f09a93; --danger-bg: #401c19;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1819; --surface: #172526; --line: #2b3d3e; --fg: #e3eceb; --muted: #93a8a8;
+  --accent: #4fb8bd; --accent-fg: #06201f;
+  --ok: #7ed3a0; --ok-bg: #173524; --rest: #e8c26a; --rest-bg: #3a2e10;
+  --use: #9db8f2; --use-bg: #1b2a4a; --danger: #f09a93; --danger-bg: #401c19;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.55; }
+#app { max-width: 520px; margin: 0 auto; padding-inline: 16px; padding-block: 0 96px; display: flex; flex-direction: column; gap: 14px; }
+header.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); padding-block: 12px 8px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--line); }
+header.top h1 { font-size: 17px; font-weight: 700; margin: 0; flex: 1; min-width: 0; text-wrap: balance; }
+.back { border: 0; background: none; color: var(--accent); font: inherit; font-weight: 700; padding: 6px 4px; cursor: pointer; }
+.note { font-size: 12.5px; color: var(--muted); margin: 0; }
+.demo { font-size: 12.5px; color: var(--muted); display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+.link { border: 0; background: none; color: var(--accent); font: inherit; font-size: 12.5px; text-decoration: underline; cursor: pointer; padding: 4px 0; }
+h2 { font-size: 12.5px; font-weight: 700; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; margin: 6px 0 0; }
+.stack { display: flex; flex-direction: column; gap: 8px; }
+.row { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.row.static { cursor: default; }
+.row .grow, .grow { flex: 1; min-width: 0; }
+.ttl { font-weight: 700; }
+.sub { font-size: 12.5px; color: var(--muted); }
+.id { font-family: var(--font-id); font-variant-numeric: tabular-nums; font-weight: 500; }
+.pill { display: inline-block; font-size: 12px; font-weight: 700; padding: 1px 8px; border-radius: 999px; white-space: nowrap; }
+.pill.ok { background: var(--ok-bg); color: var(--ok); }
+.pill.rest { background: var(--rest-bg); color: var(--rest); }
+.pill.use { background: var(--use-bg); color: var(--use); }
+.pill.off { background: var(--line); color: var(--muted); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.chip { font-family: var(--font-id); font-size: 12.5px; padding: 1px 7px; border-radius: 4px; border: 1px solid var(--line); }
+.chip.ok { border-color: var(--ok); color: var(--ok); }
+.chip.rest { background: var(--rest-bg); color: var(--rest); border-color: transparent; }
+.chip.use { background: var(--use-bg); color: var(--use); border-color: transparent; }
+.chip.next { box-shadow: 0 0 0 2px var(--accent); }
+.row.next { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.row.none-ok { opacity: .6; }
+.count { font-family: var(--font-id); font-size: 15px; font-weight: 500; white-space: nowrap; }
+.ph { border-radius: 4px; display: block; flex: none; background: var(--line); }
+.ph.fill { width: 100%; height: auto; aspect-ratio: 1; }
+.ph[data-zoom] { cursor: zoom-in; }
+#zoom { position: fixed; inset: 0; z-index: 8; background: var(--bg); display: flex; align-items: center; justify-content: center; padding: 16px; cursor: zoom-out; }
+#zoom .zin { width: 100%; max-width: 520px; display: flex; flex-direction: column; gap: 10px; }
+#zoom p { margin: 0; }
+.btn { border: 1px solid var(--accent); background: var(--accent); color: var(--accent-fg); font: inherit; font-weight: 700; padding: 11px 14px; border-radius: 6px; cursor: pointer; width: 100%; }
+.btn.ghost { background: transparent; color: var(--accent); }
+.btn.danger { background: transparent; border-color: var(--danger); color: var(--danger); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btnrow { display: flex; gap: 8px; flex-wrap: wrap; }
+.btnrow .btn { flex: 1 1 130px; }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, label.seg:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.alert { border-radius: 6px; padding: 10px 12px; font-size: 13.5px; }
+.alert.rest { background: var(--rest-bg); color: var(--rest); }
+.alert.danger { background: var(--danger-bg); color: var(--danger); }
+.alert.use { background: var(--use-bg); color: var(--use); }
+.alert.ok { background: var(--ok-bg); color: var(--ok); }
+.shot { display: flex; gap: 12px; align-items: center; background: var(--surface); border: 1px dashed var(--line); border-radius: 6px; padding: 10px 12px; }
+.cand { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; display: flex; flex-direction: column; gap: 10px; }
+.cand .line { display: flex; align-items: center; gap: 12px; }
+.sim { font-family: var(--font-id); font-size: 12.5px; color: var(--muted); }
+.bar { height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; margin-top: 3px; }
+.bar i { display: block; height: 100%; background: var(--accent); }
+.basket { background: var(--surface); border: 1px solid var(--accent); border-radius: 6px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.tape { font-family: var(--font-id); background: var(--surface); border: 1px solid var(--line); border-left: 6px solid var(--accent); padding: 10px 12px; font-size: 16px; display: flex; justify-content: space-between; gap: 12px; }
+.cmp { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.cmp.big { grid-template-columns: 1fr; }
+.cmp figure { margin: 0; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.cmp figcaption { font-size: 12.5px; color: var(--muted); }
+.cmp figcaption strong { color: var(--fg); }
+.empty { aspect-ratio: 1; border: 1px dashed var(--line); border-radius: 4px; display: flex; align-items: center; justify-content: center; text-align: center; padding: 12px; font-size: 12.5px; color: var(--muted); }
+.thumbs { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
+.thumb { border: 2px solid transparent; background: none; padding: 2px; border-radius: 6px; font: inherit; color: var(--muted); font-size: 11.5px; cursor: pointer; flex: none; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.thumb[aria-current="true"] { border-color: var(--accent); color: var(--fg); }
+.switch { display: flex; gap: 6px; flex-wrap: wrap; }
+.switch button { flex: 1 1 80px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); font: inherit; border-radius: 6px; padding: 7px 6px; cursor: pointer; }
+.switch button[aria-current="true"] { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+form.rec { display: flex; flex-direction: column; gap: 14px; }
+.field { display: flex; flex-direction: column; gap: 5px; }
+.field > span, fieldset legend { font-size: 12.5px; font-weight: 700; color: var(--muted); }
+fieldset { border: 0; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+input[type=text], input[type=date], select, textarea { font: inherit; color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 9px 10px; width: 100%; }
+.segs { display: flex; gap: 6px; flex-wrap: wrap; }
+label.seg { flex: 1 1 60px; text-align: center; border: 1px solid var(--line); background: var(--surface); border-radius: 6px; padding: 8px 6px; cursor: pointer; font-weight: 500; }
+label.seg input { position: absolute; opacity: 0; pointer-events: none; }
+label.seg:has(input:checked) { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+dl.kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; margin: 0; font-size: 14px; }
+dl.kv dt { color: var(--muted); } dl.kv dd { margin: 0; }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { color: var(--muted); font-weight: 700; }
+td.chg { color: var(--accent); font-weight: 700; }
+nav.tabs { position: fixed; left: 0; right: 0; bottom: 0; background: var(--surface); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom, 0px); z-index: 6; }
+nav.tabs div { max-width: 520px; margin: 0 auto; display: flex; }
+nav.tabs button { flex: 1; border: 0; background: none; font: inherit; color: var(--muted); padding: 12px 4px; font-weight: 700; cursor: pointer; border-top: 3px solid transparent; }
+nav.tabs button[aria-current="page"] { color: var(--accent); border-top-color: var(--accent); }
+#toast { position: fixed; left: 50%; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 8px 14px; border-radius: 6px; font-size: 13.5px; z-index: 7; max-width: calc(100% - 32px); }
+
+[hidden] { display: none !important; }
+.ph { object-fit: cover; }
+.ph.none { display: flex; align-items: center; justify-content: center; text-align: center; font-size: 10.5px; color: var(--muted); line-height: 1.2; }
+.ph.fill.none { font-size: 12.5px; }
+label.btn { display: block; text-align: center; }
+label.btn input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
+#busy { position: fixed; inset: 0; z-index: 9; background: color-mix(in srgb, var(--bg) 70%, transparent); display: flex; align-items: center; justify-content: center; font-weight: 700; }
+.who { font-size: 12.5px; color: var(--muted); display: flex; justify-content: space-between; gap: 8px; }
+#cropper { position: fixed; inset: 0; z-index: 8; background: var(--bg); overflow-y: auto; }
+#cropper .crop-in { max-width: 520px; margin: 0 auto; padding-inline: 16px; padding-block: 0 24px; display: flex; flex-direction: column; gap: 12px; }
+.crop-stage { position: relative; overflow: hidden; border-radius: 4px; line-height: 0; user-select: none; -webkit-user-select: none; }
+.crop-stage img { width: 100%; display: block; pointer-events: none; }
+#crop-frame { position: absolute; border: 2px solid var(--accent-fg); outline: 2px solid var(--accent); box-shadow: 0 0 0 2000px rgba(0, 0, 0, .5); touch-action: none; cursor: move; }
+input[type=range] { width: 100%; accent-color: var(--accent); }
+.sr-file { position: fixed; left: 0; bottom: 0; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+</style>
+</head>
+<body>
+<style>
+main { max-width: 960px; margin: 0 auto; padding-inline: 16px; padding-block: 0 48px; display: flex; flex-direction: column; gap: 14px; }
+main p { margin: 0; }
+.pick { display: flex; flex-direction: column; gap: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; }
+.pick input { font: inherit; font-size: 13.5px; max-width: 100%; }
+.loaded { font-size: 12.5px; color: var(--muted); }
+.pairs { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 8px; }
+.finding { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.groups, .photos { display: flex; flex-wrap: wrap; gap: 8px; }
+.groups { gap: 12px; }
+.photos figure { margin: 0; display: flex; flex-direction: column; gap: 4px; width: 132px; }
+.photos img, .photos .noimg { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 4px; background: var(--line); display: block; }
+.photos figcaption { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.photos figcaption strong { color: var(--fg); }
+.group { border-left: 3px solid var(--line); padding-left: 8px; }
+table.bins { border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; width: 100%; max-width: 560px; }
+table.bins th, table.bins td { border-bottom: 1px solid var(--line); padding: 4px 8px; text-align: right; }
+table.bins th:first-child, table.bins td:first-child { text-align: left; }
+details summary { cursor: pointer; font-size: 13.5px; }
+details > div { margin-top: 8px; }
+.btn.inline { width: auto; }
+</style>
+<main>
+  <header class="top"><h1>XenoLog roster check</h1></header>
+  <p class="note">Compares every frog photo with every other one and lists where the photos and the IDs disagree: photos filed under one ID that do not match each other, and photos filed under different IDs that do. It uses the same pattern check as the app, so it is a suggestion; look at the photos before changing anything. The files you choose are read in this browser and are not sent anywhere. The pattern check (OpenCV.js) is downloaded from jsDelivr the first time.</p>
+
+  <h2>1. Photos</h2>
+  <div class="pick">
+    <label for="csv-in"><span class="ttl">Sheet exports (CSV)</span></label>
+    <p class="note">In the spreadsheet, open the <strong>Photos</strong> sheet and choose File &gt; Download &gt; Comma-separated values. Do the same for the <strong>Frogs</strong> sheet (optional: it limits the check to frogs in the colony and lists frogs with no photo). Choose both files here. The backs are compared as they were cropped in the app.</p>
+    <input type="file" id="csv-in" accept=".csv,text/csv" multiple>
+  </div>
+  <div class="pick">
+    <label for="img-in"><span class="ttl">Or photo files</span></label>
+    <p class="note">Image files whose names start with the frog ID, such as <code>125.jpg</code>, <code>125 back.png</code>, or the app's own <code>frog-125_2026-10-14_P1a2b3c4d.jpg</code>. The back is found automatically, which misses on some photos.</p>
+    <input type="file" id="img-in" accept="image/*" multiple>
+  </div>
+  <p class="loaded" id="loaded" role="status">Nothing chosen yet.</p>
+  <div class="btnrow"><button class="btn" id="run" disabled>Check</button><button class="btn ghost" id="clear">Start over</button></div>
+  <p class="note" id="progress" role="status"></p>
+
+  <div id="result" class="stack"></div>
+</main>
+<script>
+/* Photo handling in the browser: resize, find the frog's back, and compare two back patterns by
+   counting points that line up. Everything here fails soft: if the back cannot be found the centre
+   of the photo is used, and if OpenCV cannot load the app works without a suggestion. */
+var Matcher = (function () {
+  var CV_URL = 'https://cdn.jsdelivr.net/npm/@techstark/opencv-js@4.12.0-release.1/dist/opencv.js';
+  var FULL = 1280, PATTERN = 256, THUMB = 128, WORK = 200;
+  var MATCH_SIDE = 384, MATCH_POINTS = 800, RATIO = 0.8;   // back image is enlarged to this size; ORB keeps this many points
+  var loading = null, status = 'idle', onStatus = function () {}, loadMs = null;
+
+  function setStatus(s) { status = s; try { onStatus(s); } catch (e) {} }
+
+  /** Loads OpenCV once. Resolves to true when matching can be used. */
+  function load() {
+    if (loading) return loading;
+    setStatus('loading');
+    var started = Date.now();
+    loading = new Promise(function (ok) {
+      var s = document.createElement('script'), timer = setTimeout(function () { ok(false); }, 90000);
+      s.src = CV_URL; s.async = true;
+      s.onerror = function () { clearTimeout(timer); ok(false); };
+      s.onload = function () {
+        var c = window.cv;
+        // The OpenCV module object has its own .then. Awaiting it, or resolving a promise with it, never finishes
+        // and freezes the page, so it is only ever used through the global and .then is removed.
+        function done() { clearTimeout(timer); try { delete c.then; } catch (e) {} ok(typeof c.ORB === 'function' && typeof c.BFMatcher === 'function'); }
+        if (!c) { clearTimeout(timer); ok(false); } else if (c.Mat) done(); else c.onRuntimeInitialized = done;
+      };
+      document.head.appendChild(s);
+    }).then(function (good) { loadMs = Date.now() - started; setStatus(good ? 'ready' : 'unavailable'); return good; });
+    return loading;
+  }
+
+  function readFile(file) {
+    return new Promise(function (ok, fail) { var r = new FileReader(); r.onload = function () { ok(r.result); }; r.onerror = fail; r.readAsDataURL(file); });
+  }
+  function loadImage(src) {
+    return new Promise(function (ok, fail) { var im = new Image(); im.onload = function () { ok(im); }; im.onerror = function () { fail(new Error('The photo could not be read.')); }; im.src = src; });
+  }
+  function canvasOf(w, h) { var c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
+  function scaled(img, maxSide) {
+    var k = Math.min(1, maxSide / Math.max(img.width, img.height));
+    var c = canvasOf(Math.round(img.width * k), Math.round(img.height * k));
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    return c;
+  }
+
+  /* ---- binary image helpers on Uint8Array masks of size w*h ---- */
+  function morph(m, w, h, grow) {           // one step with a plus-shaped neighbourhood
+    var o = new Uint8Array(m.length), x, y, i, v;
+    for (y = 0; y < h; y++) for (x = 0; x < w; x++) {
+      i = y * w + x;
+      if (grow) v = m[i] || (x > 0 && m[i - 1]) || (x < w - 1 && m[i + 1]) || (y > 0 && m[i - w]) || (y < h - 1 && m[i + w]);
+      else v = m[i] && x > 0 && m[i - 1] && x < w - 1 && m[i + 1] && y > 0 && m[i - w] && y < h - 1 && m[i + w];
+      o[i] = v ? 1 : 0;
+    }
+    return o;
+  }
+  function repeat(m, w, h, grow, n) { for (var i = 0; i < n; i++) m = morph(m, w, h, grow); return m; }
+  function largest(m, w, h) {               // keep the biggest connected blob
+    var lab = new Int32Array(m.length), best = 0, bestN = 0, cur = 0, stack = [], i, j, n, x, y;
+    for (i = 0; i < m.length; i++) {
+      if (!m[i] || lab[i]) continue;
+      cur++; n = 0; stack.push(i); lab[i] = cur;
+      while (stack.length) {
+        j = stack.pop(); n++; x = j % w; y = (j - x) / w;
+        if (x > 0 && m[j - 1] && !lab[j - 1]) { lab[j - 1] = cur; stack.push(j - 1); }
+        if (x < w - 1 && m[j + 1] && !lab[j + 1]) { lab[j + 1] = cur; stack.push(j + 1); }
+        if (y > 0 && m[j - w] && !lab[j - w]) { lab[j - w] = cur; stack.push(j - w); }
+        if (y < h - 1 && m[j + w] && !lab[j + w]) { lab[j + w] = cur; stack.push(j + w); }
+      }
+      if (n > bestN) { bestN = n; best = cur; }
+    }
+    var o = new Uint8Array(m.length);
+    if (best) for (i = 0; i < m.length; i++) o[i] = lab[i] === best ? 1 : 0;
+    return { mask: o, area: bestN };
+  }
+  function fillHoles(m, w, h) {             // background reachable from the border stays background
+    var seen = new Uint8Array(m.length), stack = [], i, j, x, y;
+    function push(k) { if (!m[k] && !seen[k]) { seen[k] = 1; stack.push(k); } }
+    for (x = 0; x < w; x++) { push(x); push((h - 1) * w + x); }
+    for (y = 0; y < h; y++) { push(y * w); push(y * w + w - 1); }
+    while (stack.length) {
+      j = stack.pop(); x = j % w; y = (j - x) / w;
+      if (x > 0) push(j - 1); if (x < w - 1) push(j + 1); if (y > 0) push(j - w); if (y < h - 1) push(j + w);
+    }
+    var o = new Uint8Array(m.length);
+    for (i = 0; i < m.length; i++) o[i] = seen[i] ? 0 : 1;
+    return o;
+  }
+  function distance(m, w, h, edge) {              // distance (in pixels) from each pixel to the nearest 0, chamfer 3-4
+    var INF = 1e9, d = new Float32Array(m.length), x, y, i;
+    for (i = 0; i < m.length; i++) d[i] = m[i] ? INF : 0;
+    for (y = 0; y < h; y++) for (x = 0; x < w; x++) {
+      i = y * w + x; if (!d[i]) continue;
+      if (edge && (x === 0 || y === 0 || x === w - 1 || y === h - 1)) d[i] = Math.min(d[i], 3);
+      if (x > 0) d[i] = Math.min(d[i], d[i - 1] + 3);
+      if (y > 0) { d[i] = Math.min(d[i], d[i - w] + 3); if (x > 0) d[i] = Math.min(d[i], d[i - w - 1] + 4); if (x < w - 1) d[i] = Math.min(d[i], d[i - w + 1] + 4); }
+    }
+    for (y = h - 1; y >= 0; y--) for (x = w - 1; x >= 0; x--) {
+      i = y * w + x; if (!d[i]) continue;
+      if (x < w - 1) d[i] = Math.min(d[i], d[i + 1] + 3);
+      if (y < h - 1) { d[i] = Math.min(d[i], d[i + w] + 3); if (x < w - 1) d[i] = Math.min(d[i], d[i + w + 1] + 4); if (x > 0) d[i] = Math.min(d[i], d[i + w - 1] + 4); }
+    }
+    for (i = 0; i < d.length; i++) d[i] /= 3;
+    return d;
+  }
+
+  /* Two ways to mark "frog" pixels on a small copy of the photo.
+     colour:  yellow-olive skin (green clearly above blue). Works on grey backgrounds, misses dark frogs.
+     salient: pixels that differ from the photo's typical colour or sit in a busy, blotchy area.
+              Works when the background is plain (white paper), whatever the frog's colour. */
+  function maskColour(px, n) {
+    var m = new Uint8Array(n), i, r, g, b, mx, mn;
+    for (i = 0; i < n; i++) {
+      r = px[i * 4]; g = px[i * 4 + 1]; b = px[i * 4 + 2]; mx = Math.max(r, g, b); mn = Math.min(r, g, b);
+      m[i] = (g - b > 15 && r > b && mx > 0 && (mx - mn) / mx > 0.18) ? 1 : 0;
+    }
+    return m;
+  }
+  function median(a) { var s = Array.prototype.slice.call(a).sort(function (p, q) { return p - q; }); return s[s.length >> 1]; }
+  function scaleTo98(a) {
+    var s = Array.prototype.slice.call(a).sort(function (p, q) { return p - q; }), hi = s[Math.floor(s.length * 0.98)] || 1, o = new Float32Array(a.length), i;
+    for (i = 0; i < a.length; i++) o[i] = Math.min(1, a[i] / hi);
+    return o;
+  }
+  function maskSalient(px, w, h) {
+    var n = w * h, R = new Float32Array(n), G = new Float32Array(n), B = new Float32Array(n), L = new Float32Array(n), i, x, y;
+    for (i = 0; i < n; i++) { R[i] = px[i * 4]; G[i] = px[i * 4 + 1]; B[i] = px[i * 4 + 2]; L[i] = 0.3 * R[i] + 0.59 * G[i] + 0.11 * B[i]; }
+    var mr = median(R), mg = median(G), mb = median(B), diff = new Float32Array(n);
+    for (i = 0; i < n; i++) diff[i] = Math.sqrt((R[i] - mr) * (R[i] - mr) + (G[i] - mg) * (G[i] - mg) + (B[i] - mb) * (B[i] - mb));
+    // local contrast: standard deviation of brightness in an 11x11 window, from summed-area tables
+    var W1 = w + 1, I = new Float64Array(W1 * (h + 1)), I2 = new Float64Array(W1 * (h + 1)), s, s2, v, rad = 5, sd = new Float32Array(n);
+    for (y = 0; y < h; y++) { s = 0; s2 = 0; for (x = 0; x < w; x++) { v = L[y * w + x]; s += v; s2 += v * v; I[(y + 1) * W1 + x + 1] = I[y * W1 + x + 1] + s; I2[(y + 1) * W1 + x + 1] = I2[y * W1 + x + 1] + s2; } }
+    for (y = 0; y < h; y++) for (x = 0; x < w; x++) {
+      var x0 = Math.max(0, x - rad), x1 = Math.min(w, x + rad + 1), y0 = Math.max(0, y - rad), y1 = Math.min(h, y + rad + 1), c = (x1 - x0) * (y1 - y0);
+      s = I[y1 * W1 + x1] - I[y0 * W1 + x1] - I[y1 * W1 + x0] + I[y0 * W1 + x0];
+      s2 = I2[y1 * W1 + x1] - I2[y0 * W1 + x1] - I2[y1 * W1 + x0] + I2[y0 * W1 + x0];
+      sd[y * w + x] = Math.sqrt(Math.max(0, s2 / c - (s / c) * (s / c)));
+    }
+    var nd = scaleTo98(diff), ns = scaleTo98(sd), f = new Float32Array(n), hist = [], t;
+    for (t = 0; t < 64; t++) hist.push(0);
+    for (i = 0; i < n; i++) { f[i] = 0.5 * nd[i] + 0.5 * ns[i]; hist[Math.min(63, Math.floor(f[i] * 64))]++; }
+    var sum = 0, sB = 0, wB = 0, best = 0, thr = 0, wF, d;        // Otsu's threshold on the combined score
+    for (t = 0; t < 64; t++) sum += t * hist[t];
+    for (t = 0; t < 64; t++) { wB += hist[t]; if (!wB) continue; wF = n - wB; if (!wF) break; sB += t * hist[t]; d = sB / wB - (sum - sB) / wF; v = wB * wF * d * d; if (v > best) { best = v; thr = t; } }
+    var m = new Uint8Array(n);
+    for (i = 0; i < n; i++) m[i] = f[i] * 64 > thr ? 1 : 0;
+    return m;
+  }
+
+  /* From a pixel mask: take the biggest blob, then remove everything thinner than the trunk (legs, container edges). */
+  function trunk(m, w, h, k) {
+    var i;
+    m = repeat(repeat(m, w, h, true, 2), w, h, false, 2);       // close small gaps
+    m = repeat(repeat(m, w, h, false, 1), w, h, true, 1);       // drop specks
+    var body = largest(m, w, h);
+    if (body.area < 0.03 * w * h || body.area > 0.75 * w * h) return null;
+    var filled = fillHoles(body.mask, w, h), rad = Math.sqrt(body.area) * 0.22;
+    var inside = distance(filled, w, h, true), core = new Uint8Array(w * h), inv = new Uint8Array(w * h);
+    for (i = 0; i < core.length; i++) core[i] = inside[i] > rad ? 1 : 0;
+    core = largest(core, w, h).mask;
+    for (i = 0; i < inv.length; i++) inv[i] = core[i] ? 0 : 1;
+    var near = distance(inv, w, h, false), x0 = w, y0 = h, x1 = -1, y1 = -1, x, y, n = 0;
+    for (y = 0; y < h; y++) for (x = 0; x < w; x++) {
+      if (!core[y * w + x] && near[y * w + x] > rad) continue;   // opening = core grown back by the same radius
+      if (!filled[y * w + x]) continue;
+      n++; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+    }
+    if (!n || x1 - x0 < 0.1 * w || y1 - y0 < 0.1 * w) return null;
+    return { x: x0 / k, y: y0 / k, w: (x1 - x0 + 1) / k, h: (y1 - y0 + 1) / k, fill: n / ((x1 - x0 + 1) * (y1 - y0 + 1)) };
+  }
+  // How frog-like a detected box is: a solid blob of plausible size near the middle of the photo.
+  function plausible(box, cw, ch) {
+    if (!box) return -1;
+    var frac = box.w * box.h / (cw * ch), size = frac < 0.06 ? frac / 0.06 : (frac > 0.45 ? 0.45 / frac : 1);
+    var dx = (box.x + box.w / 2) / cw - 0.5, dy = (box.y + box.h / 2) / ch - 0.5;
+    return box.fill * size * (1 - Math.min(1, Math.sqrt(dx * dx + dy * dy) / 0.5) * 0.5);
+  }
+  /* Tries both methods and keeps the more plausible box. Returns null when neither is convincing,
+     for example when the frog fills the whole photo; the caller then uses the centre. */
+  function findBack(canvas, method) {
+    var k = WORK / canvas.width, w = WORK, h = Math.max(1, Math.round(canvas.height * k));
+    var small = canvasOf(w, h); small.getContext('2d').drawImage(canvas, 0, 0, w, h);
+    var px = small.getContext('2d').getImageData(0, 0, w, h).data;
+    var a = method === 'salient' ? null : trunk(maskColour(px, w * h), w, h, k);
+    var b = method === 'colour' ? null : trunk(maskSalient(px, w, h), w, h, k);
+    if (method) return a || b;
+    var sa = plausible(a, canvas.width, canvas.height), sb = plausible(b, canvas.width, canvas.height);
+    return Math.max(sa, sb) < 0.5 ? null : (sb >= sa ? b : a);
+  }
+
+  function squareOf(canvas, box) {             // the square the crop uses, in photo pixels
+    var side = Math.min(Math.max(box.w, box.h) * 1.04, canvas.width, canvas.height);
+    return { x: Math.min(Math.max(0, box.x + box.w / 2 - side / 2), canvas.width - side),
+      y: Math.min(Math.max(0, box.y + box.h / 2 - side / 2), canvas.height - side), side: side };
+  }
+  function cut(canvas, sq, size) {
+    var c = canvasOf(size, size);
+    c.getContext('2d').drawImage(canvas, sq.x, sq.y, sq.side, sq.side, 0, 0, size, size);
+    return c;
+  }
+  function cuts(canvas, sq) { return { pattern: jpeg(cut(canvas, sq, PATTERN), 0.8, 40000), thumb: jpeg(cut(canvas, sq, THUMB), 0.7, 20000) }; }
+  function jpeg(canvas, q, maxChars) {
+    var s = canvas.toDataURL('image/jpeg', q);
+    while (maxChars && s.length > maxChars && q > 0.3) { q -= 0.1; s = canvas.toDataURL('image/jpeg', q); }
+    return s;
+  }
+
+  /** src: a File from the camera, or a data URL. Returns { full, pattern, thumb, crop, sq, width, height, size };
+      sq is the suggested crop square, which the person adjusts in the crop screen; size is the photo as taken, "4032x3024". */
+  function process(src) {
+    return (typeof src === 'string' ? Promise.resolve(src) : readFile(src)).then(loadImage).then(function (img) {
+      var full = scaled(img, FULL), box = null;
+      try { box = findBack(full); } catch (e) { console.warn('Back detection failed', e); }
+      var crop = box ? 'auto' : 'centre';
+      if (!box) { var s = Math.min(full.width, full.height) * 0.75; box = { x: (full.width - s) / 2, y: (full.height - s) / 2, w: s, h: s }; }
+      var sq = squareOf(full, box), c = cuts(full, sq);
+      return { full: jpeg(full, 0.82), pattern: c.pattern, thumb: c.thumb, crop: crop, sq: sq, width: full.width, height: full.height, size: img.width + 'x' + img.height };
+    });
+  }
+  /** Cuts the chosen square out of a photo that process() returned. */
+  function cropAt(fullDataUrl, sq) { return loadImage(fullDataUrl).then(function (img) { return cuts(scaled(img, FULL), sq); }); }
+  /** The same photo turned a quarter turn clockwise. */
+  function rotate(fullDataUrl) {
+    return loadImage(fullDataUrl).then(function (img) {
+      var c = canvasOf(img.height, img.width), x = c.getContext('2d');
+      x.translate(c.width, 0); x.rotate(Math.PI / 2); x.drawImage(img, 0, 0);
+      return jpeg(c, 0.85);
+    });
+  }
+
+  /**
+   * Points of interest in a back-pattern image, with a short binary description of the skin around each.
+   * Resolves to { n, pts: Float32Array [x0, y0, ...], des: Uint8Array n*32 }, or null when OpenCV is unavailable.
+   */
+  function describe(patternDataUrl) {
+    return load().then(function (ok) {
+      if (!ok) return null;
+      return loadImage(patternDataUrl).then(function (img) {
+        var c = canvasOf(MATCH_SIDE, MATCH_SIDE); c.getContext('2d').drawImage(img, 0, 0, MATCH_SIDE, MATCH_SIDE);
+        var src = cv.imread(c), gray = new cv.Mat(), eq = new cv.Mat(), clahe = new cv.CLAHE(2.0, new cv.Size(8, 8));
+        var orb = new cv.ORB(MATCH_POINTS), kp = new cv.KeyPointVector(), des = new cv.Mat(), none = new cv.Mat(), out;
+        try {
+          cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY); clahe.apply(gray, eq);   // even out lighting before looking for points
+          orb.detectAndCompute(eq, none, kp, des);
+          var n = kp.size(), pts = new Float32Array(n * 2), i, p;
+          for (i = 0; i < n; i++) { p = kp.get(i).pt; pts[2 * i] = p.x; pts[2 * i + 1] = p.y; }
+          out = { n: n, pts: pts, des: n ? new Uint8Array(des.data) : new Uint8Array(0) };   // copied out, so nothing in OpenCV's memory is kept
+        } finally { src.delete(); gray.delete(); eq.delete(); clahe.delete(); orb.delete(); kp.delete(); des.delete(); none.delete(); }
+        return out;
+      });
+    }).catch(function (e) { console.warn('Could not describe the pattern', e); return null; });
+  }
+
+  /**
+   * How many points of pattern a line up with points of pattern b under one consistent placement
+   * (shift, turn, modest stretch). Different frogs give a handful at most; the same frog gives tens to hundreds.
+   */
+  function count(a, b) {
+    if (!a || !b || a.n < 4 || b.n < 4 || status !== 'ready') return 0;
+    var da = cv.matFromArray(a.n, 32, cv.CV_8U, a.des), db = cv.matFromArray(b.n, 32, cv.CV_8U, b.des);
+    var bf = new cv.BFMatcher(cv.NORM_HAMMING, false), mm = new cv.DMatchVectorVector(), best = {}, good = [], i, pr, m, m2, result = 0;
+    var from = null, to = null, inl = null, M = null;
+    try {
+      bf.knnMatch(da, db, mm, 2);
+      for (i = 0; i < mm.size(); i++) {
+        pr = mm.get(i); if (pr.size() < 2) continue;
+        m = pr.get(0); m2 = pr.get(1);
+        // keep a pairing only when it is clearly better than the runner-up, and let each point of b be used once
+        if (m.distance < RATIO * m2.distance && (!best[m.trainIdx] || m.distance < best[m.trainIdx].d)) best[m.trainIdx] = { q: m.queryIdx, t: m.trainIdx, d: m.distance };
+      }
+      Object.keys(best).forEach(function (k) { good.push(best[k]); });
+      if (good.length < 4) return 0;
+      from = new cv.Mat(good.length, 1, cv.CV_32FC2); to = new cv.Mat(good.length, 1, cv.CV_32FC2); inl = new cv.Mat();
+      for (i = 0; i < good.length; i++) {
+        from.data32F[2 * i] = a.pts[2 * good[i].q]; from.data32F[2 * i + 1] = a.pts[2 * good[i].q + 1];
+        to.data32F[2 * i] = b.pts[2 * good[i].t]; to.data32F[2 * i + 1] = b.pts[2 * good[i].t + 1];
+      }
+      M = cv.estimateAffine2D(from, to, inl, cv.RANSAC, MATCH_SIDE * 0.012, 5000, 0.999, 10);
+      if (M && M.rows === 2) {
+        var d = M.data64F, sx = Math.hypot(d[0], d[3]), sy = Math.hypot(d[1], d[4]), det = d[0] * d[4] - d[1] * d[3];
+        // reject placements no real pair of photos could need: collapsing to a dot, heavy stretch, or a mirror image
+        if (sx >= 0.4 && sx <= 2.5 && sy >= 0.4 && sy <= 2.5 && sx / sy >= 0.6 && sx / sy <= 1.67 && det > 0) result = cv.countNonZero(inl);
+      }
+    } catch (e) { console.warn('Matching failed', e); result = 0; }
+    finally { da.delete(); db.delete(); bf.delete(); mm.delete(); if (from) from.delete(); if (to) to.delete(); if (inl) inl.delete(); if (M) M.delete(); }
+    return result;
+  }
+
+  return { load: load, process: process, scaled: scaled, loadImage: loadImage, readFile: readFile, cropAt: cropAt, rotate: rotate, describe: describe, count: count, findBack: findBack,
+    status: function () { return status; }, onStatus: function (f) { onStatus = f; }, loadMs: function () { return loadMs; } };
+})();
+</script>
+<script>
+/* Roster check: compares every photo with every other photo and lists where the photos and the IDs disagree.
+   Used by the check page (docs/check/); runs in a browser, and in Node for the tests. Holds no lab data:
+   the photos come from the person's own sheet export or files and never leave the computer. */
+var RosterCheck = (function () {
+  var MATCH_MIN = 10;   // the same as MATCH_MIN in app.js: matching points needed to call two photos the same frog
+  var NEAR_MIN = 6;     // 6 to 9 points between different IDs: not a match, but more than different frogs gave in tests (5 or fewer)
+  var BINS = [[0, 0], [1, 5], [6, 9], [10, 14], [15, 49], [50, Infinity]];
+  // Column positions in the sheets, as in PHOTO_COLS and FROG_COLS in Code.gs.
+  var PHOTO = { id: 0, frog: 1, date: 2, kind: 3, pattern: 6, crop: 8 }, FROG = { id: 0, status: 1, tank: 2 };
+
+  /** Rows of a CSV file as written by Google Sheets: quoted fields may hold commas, quotes and line breaks. */
+  function parseCsv(text) {
+    var rows = [], row = [], f = '', q = false, i, c;
+    text = String(text).replace(/^﻿/, '');
+    for (i = 0; i < text.length; i++) {
+      c = text[i];
+      if (q) {
+        if (c === '"' && text[i + 1] === '"') { f += '"'; i++; }
+        else if (c === '"') q = false;
+        else f += c;
+      } else if (c === '"') q = true;
+      else if (c === ',') { row.push(f); f = ''; }
+      else if (c === '\n' || c === '\r') {
+        if (c === '\r' && text[i + 1] === '\n') i++;
+        row.push(f); rows.push(row); row = []; f = '';
+      } else f += c;
+    }
+    if (f !== '' || row.length) { row.push(f); rows.push(row); }
+    return rows;
+  }
+  function num(v) { var s = String(v == null ? '' : v).trim(); return /^\d+$/.test(s) ? Number(s) : null; }
+  function cell(r, n) { return String(r[n] == null ? '' : r[n]).trim(); }
+
+  /** Which sheet a CSV export is, from its first heading: 'photos', 'frogs' or ''. */
+  function kindOfCsv(rows) {
+    var h = rows.length ? cell(rows[0], 0) : '';
+    return h === 'Photo ID' ? 'photos' : h === 'Animal ID' ? 'frogs' : '';
+  }
+  /** Photos sheet rows that the app still shows: not removed or cancelled, with an ID. */
+  function photosFromRows(rows) {
+    return rows.slice(1).map(function (r) {
+      return { photoId: cell(r, PHOTO.id), frog: num(r[PHOTO.frog]), date: cell(r, PHOTO.date), kind: cell(r, PHOTO.kind),
+        pattern: cell(r, PHOTO.pattern), crop: cell(r, PHOTO.crop) };
+    }).filter(function (p) { return p.photoId !== '' && p.frog !== null && p.kind !== 'removed' && p.kind !== 'cancelled'; });
+  }
+  function frogsFromRows(rows) {
+    return rows.slice(1).map(function (r) { return { id: num(r[FROG.id]), inColony: cell(r, FROG.status) === 'In colony', tank: num(r[FROG.tank]) }; })
+      .filter(function (f) { return f.id !== null; });
+  }
+  /** The frog ID in a photo file name: the app's "frog-125_2026-10-14_P1a2b3c4d.jpg", or "125.jpg" and "#125 back.png" as for importing. */
+  function idFromName(name) {
+    var m = String(name).match(/^frog-(\d+)_/) || String(name).match(/^\s*#?(\d+)/);
+    return m ? Number(m[1]) : null;
+  }
+
+  /**
+   * Counts matching points for every pair of photos that have a description (feats[i], from Matcher.describe).
+   * count is Matcher.count. progress(done, total) is called now and then; the work pauses there so the page can redraw.
+   * Resolves to [{ a, b, score }] with a < b as indexes into photos.
+   */
+  function scoreAll(photos, feats, count, progress) {
+    var idx = [], pairs = [], i, j;
+    for (i = 0; i < photos.length; i++) if (feats[i]) idx.push(i);
+    for (i = 0; i < idx.length; i++) for (j = i + 1; j < idx.length; j++) pairs.push({ a: idx[i], b: idx[j], score: 0 });
+    var k = 0;
+    return new Promise(function (ok, fail) {
+      (function next() {
+        try {
+          var until = Date.now() + 100;      // work in slices of about 0.1 s, then let the page redraw
+          while (k < pairs.length && Date.now() < until) { pairs[k].score = count(feats[pairs[k].a], feats[pairs[k].b]); k++; }
+          if (progress) progress(k, pairs.length);
+          if (k < pairs.length) pause(next); else ok(pairs);
+        } catch (e) { fail(e); }
+      })();
+    });
+  }
+  // A browser slows timers in a tab that is not in front to one a second; a message is not slowed, so a long check keeps going.
+  function pause(f) {
+    if (typeof MessageChannel === 'undefined' || typeof document === 'undefined') { setTimeout(f, 0); return; }
+    var ch = new MessageChannel();
+    ch.port1.onmessage = function () { ch.port1.close(); f(); };
+    ch.port2.postMessage(0);
+  }
+
+  /**
+   * What the scores say about the roster. photos: [{ photoId, frog, date, ... }]; feats[i] is falsy for a photo that could not be read;
+   * pairs from scoreAll; frogs (optional, from the Frogs sheet) limits the check to frogs in the colony and finds frogs with no photo.
+   *   split:   IDs whose photos fall into more than one group that do not match each other. groups: lists of photo indexes;
+   *            best: for each photo in the ID, the best-matching photo of another ID.
+   *   merged:  pairs of photos of different IDs that match (MATCH_MIN or more), highest first.
+   *   near:    pairs of photos of different IDs with NEAR_MIN to MATCH_MIN - 1 points.
+   *   lone:    IDs with a single readable photo; nothing of their own to check it against.
+   *   missing: frogs in the colony with no readable photo. unreadable: photo indexes with no pattern or no description.
+   *   outside: photo indexes of frogs that are not in the colony (left out of everything else).
+   *   bins:    how many pairs fall in each score range, for the same ID (on different days and on the same day) and for different IDs.
+   */
+  function findings(photos, feats, pairs, frogs) {
+    var colony = null, tankOf = {};
+    if (frogs && frogs.length) {
+      colony = {};
+      frogs.forEach(function (f) { if (f.inColony) { colony[f.id] = true; tankOf[f.id] = f.tank; } });
+    }
+    var inside = function (i) { return !colony || colony[photos[i].frog]; };
+    var out = { split: [], merged: [], near: [], lone: [], missing: [], unreadable: [], outside: [], tankOf: tankOf,
+      bins: { sameDays: BINS.map(function () { return 0; }), sameDay: BINS.map(function () { return 0; }), other: BINS.map(function () { return 0; }) }, binRanges: BINS };
+    var byFrog = {};
+    photos.forEach(function (p, i) {
+      if (!inside(i)) { out.outside.push(i); return; }
+      if (!feats[i]) { out.unreadable.push(i); return; }
+      (byFrog[p.frog] = byFrog[p.frog] || []).push(i);
+    });
+    var score = {}, best = {};
+    pairs.forEach(function (pr) {
+      if (!inside(pr.a) || !inside(pr.b)) return;
+      var A = photos[pr.a], B = photos[pr.b], s = pr.score, bin = BINS.findIndex(function (r) { return s >= r[0] && s <= r[1]; });
+      score[pr.a + '|' + pr.b] = score[pr.b + '|' + pr.a] = s;
+      if (A.frog === B.frog) { out.bins[A.date && A.date === B.date ? 'sameDay' : 'sameDays'][bin]++; return; }
+      out.bins.other[bin]++;
+      if (s >= MATCH_MIN) out.merged.push(pr); else if (s >= NEAR_MIN) out.near.push(pr);
+      [[pr.a, pr.b], [pr.b, pr.a]].forEach(function (x) { if (!best[x[0]] || s > best[x[0]].score) best[x[0]] = { photo: x[1], score: s }; });
+    });
+    var byScore = function (x, y) { return y.score - x.score; };
+    out.merged.sort(byScore); out.near.sort(byScore);
+    Object.keys(byFrog).forEach(function (id) {
+      var list = byFrog[id];
+      if (list.length === 1) { out.lone.push(Number(id)); return; }
+      // photos joined by a match end up in one group
+      var group = list.map(function (_, n) { return n; });
+      var root = function (n) { while (group[n] !== n) n = group[n] = group[group[n]]; return n; };
+      for (var x = 0; x < list.length; x++) for (var y = x + 1; y < list.length; y++) if ((score[list[x] + '|' + list[y]] || 0) >= MATCH_MIN) group[root(x)] = root(y);
+      var groups = {};
+      list.forEach(function (i, n) { (groups[root(n)] = groups[root(n)] || []).push(i); });
+      var g = Object.keys(groups).map(function (k) { return groups[k]; });
+      if (g.length > 1) {
+        var within = [];
+        for (x = 0; x < list.length; x++) for (y = x + 1; y < list.length; y++) within.push({ a: list[x], b: list[y], score: score[list[x] + '|' + list[y]] || 0 });
+        out.split.push({ frog: Number(id), groups: g, within: within, best: list.map(function (i) { return { photo: i, match: best[i] || null }; }) });
+      }
+    });
+    if (colony) Object.keys(colony).forEach(function (id) { if (!byFrog[id]) out.missing.push(Number(id)); });
+    var asc = function (x, y) { return x - y; };
+    out.lone.sort(asc); out.missing.sort(asc); out.split.sort(function (x, y) { return x.frog - y.frog; });
+    return out;
+  }
+
+  function csvField(v) { var s = String(v == null ? '' : v); return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
+  /** Every pair and its score as CSV, for looking at the scores outside the page. */
+  function pairsCsv(photos, pairs) {
+    var head = ['Photo A', 'Animal ID A', 'Date A', 'Photo B', 'Animal ID B', 'Date B', 'Same ID', 'Matching points'];
+    return [head].concat(pairs.map(function (pr) {
+      var A = photos[pr.a], B = photos[pr.b];
+      return [A.photoId, A.frog, A.date, B.photoId, B.frog, B.date, A.frog === B.frog ? 'yes' : 'no', pr.score];
+    })).map(function (r) { return r.map(csvField).join(','); }).join('\n') + '\n';
+  }
+
+  return { MATCH_MIN: MATCH_MIN, NEAR_MIN: NEAR_MIN, parseCsv: parseCsv, kindOfCsv: kindOfCsv, photosFromRows: photosFromRows, frogsFromRows: frogsFromRows,
+    idFromName: idFromName, scoreAll: scoreAll, findings: findings, pairsCsv: pairsCsv };
+})();
+if (typeof module !== 'undefined') module.exports = RosterCheck;
+</script>
+<script>
+/* Check page: reads the person's photo exports or files, runs RosterCheck and shows what it found. Nothing is sent anywhere. */
+(function () {
+  var C = { photos: [], frogs: null, sources: [], skipped: [] };
+  var $ = function (id) { return document.getElementById(id); };
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function plural(n, w) { return n + ' ' + w + (n === 1 ? '' : 's'); }
+  function say(text) { $('progress').textContent = text; }
+  function readText(file) { return new Promise(function (ok, fail) { var r = new FileReader(); r.onload = function () { ok(r.result); }; r.onerror = fail; r.readAsText(file); }); }
+
+  function showLoaded() {
+    var ids = {};
+    C.photos.forEach(function (p) { ids[p.frog] = true; });
+    $('loaded').textContent = C.photos.length ? plural(C.photos.length, 'photo') + ' of ' + plural(Object.keys(ids).length, 'ID') + ' from ' + C.sources.join(', ') +
+      (C.frogs ? '. Frogs sheet: ' + C.frogs.filter(function (f) { return f.inColony; }).length + ' in the colony' : '') +
+      (C.skipped.length ? '. Left out (no ID in the name): ' + C.skipped.slice(0, 6).join(', ') + (C.skipped.length > 6 ? ', ...' : '') : '') + '.'
+      : (C.frogs ? 'Frogs sheet read. Choose the Photos sheet export too.' : 'Nothing chosen yet.');
+    $('run').disabled = !C.photos.length;
+  }
+
+  /** A sheet export: the Photos sheet adds photos, the Frogs sheet sets the colony. */
+  function addCsvText(name, text) {
+    var rows = RosterCheck.parseCsv(text), kind = RosterCheck.kindOfCsv(rows);
+    if (kind === 'photos') { C.photos = C.photos.concat(RosterCheck.photosFromRows(rows)); C.sources.push(name); }
+    else if (kind === 'frogs') C.frogs = RosterCheck.frogsFromRows(rows);
+    else throw new Error(name + ' is not an export of the Photos or Frogs sheet (its first heading should be "Photo ID" or "Animal ID").');
+  }
+  /** Image files named by frog ID; the back is cut out automatically, as the app does before the crop screen. */
+  function addImageFiles(files) {
+    files = Array.prototype.slice.call(files);
+    var named = files.filter(function (f) { var id = RosterCheck.idFromName(f.name); if (id === null) C.skipped.push(f.name); return id !== null; }), n = 0;
+    return named.reduce(function (chain, f) {
+      return chain.then(function () {
+        say('Finding the back in ' + f.name + ' (' + (++n) + ' of ' + named.length + ')...');
+        return Matcher.process(f).then(function (r) {
+          C.photos.push({ photoId: f.name, frog: RosterCheck.idFromName(f.name), date: '', kind: 'file', pattern: r.pattern, crop: r.crop });
+        }, function () { C.photos.push({ photoId: f.name, frog: RosterCheck.idFromName(f.name), date: '', kind: 'file', pattern: '', crop: '' }); });
+      });
+    }, Promise.resolve()).then(function () { if (named.length) C.sources.push(plural(named.length, 'image file')); say(''); });
+  }
+
+  function run() {
+    $('run').disabled = true; $('result').innerHTML = '';
+    var started = Date.now(), feats = [], photos = C.photos.slice(), n = 0;
+    say('Loading the pattern check...');
+    return Matcher.load().then(function (ok) {
+      if (!ok) throw new Error('The pattern check could not be loaded. Check the internet connection and reload the page.');
+      return photos.reduce(function (chain, p, i) {
+        return chain.then(function () {
+          say('Reading the back patterns: ' + (++n) + ' of ' + photos.length + '...');
+          if (!/^data:image\//.test(p.pattern)) { feats[i] = null; return; }
+          return Matcher.describe(p.pattern).then(function (f) { feats[i] = f && f.n >= 4 ? f : null; });
+        });
+      }, Promise.resolve());
+    }).then(function () {
+      var from = Date.now();
+      return RosterCheck.scoreAll(photos, feats, Matcher.count, function (done, total) {
+        var left = done ? Math.round((Date.now() - from) / done * (total - done) / 1000) : null;
+        say('Comparing: ' + done + ' of ' + plural(total, 'pair') + (left !== null && done < total ? ', about ' + (left < 90 ? left + ' s' : Math.round(left / 60) + ' min') + ' left' : '') + '...');
+      });
+    }).then(function (pairs) {
+      var secs = Math.round((Date.now() - started) / 100) / 10;
+      say('');
+      render(photos, pairs, RosterCheck.findings(photos, feats, pairs, C.frogs), secs);
+    }).catch(function (e) { say(e.message || String(e)); })
+      .then(function () { $('run').disabled = !C.photos.length; });
+  }
+
+  function render(photos, pairs, F, secs) {
+    var M = RosterCheck.MATCH_MIN, tank = function (id) { return F.tankOf[id] ? ' (Tank ' + F.tankOf[id] + ')' : ''; };
+    function fig(i, note) {
+      var p = photos[i], img = /^data:image\//.test(p.pattern) ? '<img src="' + esc(p.pattern) + '" alt="Back of #' + p.frog + '" loading="lazy">' : '<div class="noimg"></div>';
+      return '<figure>' + img + '<figcaption><strong>#' + p.frog + '</strong>' + (p.date ? ' · ' + esc(p.date) : '') + ' · ' + esc(p.kind) + '<br>' + esc(p.photoId) +
+        (p.crop === 'auto' || p.crop === 'centre' ? '<br>automatic crop, not checked' : '') + (note ? '<br>' + note : '') + '</figcaption></figure>';
+    }
+    function pairCard(pr) {
+      var A = photos[pr.a], B = photos[pr.b];
+      return '<div class="finding"><div class="ttl"><span class="id">#' + A.frog + '</span>' + tank(A.frog) + ' and <span class="id">#' + B.frog + '</span>' + tank(B.frog) +
+        '</div><div class="sim">' + plural(pr.score, 'matching point') + (A.frog === B.frog ? '' : A.date && A.date === B.date ? ' · taken the same day' : '') +
+        '</div><div class="photos">' + fig(pr.a) + fig(pr.b) + '</div></div>';
+    }
+    var ids = {}, used = photos.length - F.unreadable.length - F.outside.length;
+    photos.forEach(function (p, i) { if (F.outside.indexOf(i) < 0) ids[p.frog] = true; });
+    var h = '<h2>Result</h2><p class="note">' + plural(used, 'photo') + ' of ' + plural(Object.keys(ids).length, 'ID') + ' compared in ' + plural(pairs.length, 'pair') + ' (' + secs + ' s). ' +
+      'Two photos are taken as the same frog at ' + M + ' matching points or more; in tests different frogs gave 5 or fewer and the same frog 15 to over 100.</p>';
+    if (!F.split.length && !F.merged.length) h += '<div class="alert ok">Every ID\'s photos match each other, and no two IDs match.</div>';
+
+    h += '<h2>IDs whose photos do not match each other (' + F.split.length + ')</h2>';
+    if (F.split.length) {
+      h += '<p class="note">One of the photos may show another frog, or a blurred photo or a crop that misses the back gives too few points. Photos that match each other are grouped. Under each photo is the other ID it matches best.</p><div class="stack">';
+      F.split.forEach(function (s) {
+        var bestOf = {};
+        s.best.forEach(function (b) { bestOf[b.photo] = b.match; });
+        h += '<div class="finding"><div class="ttl"><span class="id">#' + s.frog + '</span>' + tank(s.frog) + ': ' + s.groups.length + ' groups</div><div class="groups">' +
+          s.groups.map(function (g) {
+            return '<div class="group"><div class="photos">' + g.map(function (i) {
+              var b = bestOf[i];
+              return fig(i, b ? (b.score >= M ? '<span class="pill rest">matches #' + photos[b.photo].frog + ', ' + b.score + '</span>' : 'best other: #' + photos[b.photo].frog + ', ' + b.score) : '');
+            }).join('') + '</div></div>';
+          }).join('') + '</div>' +
+          '<div class="sim">' + s.within.map(function (w) { return esc(photos[w.a].photoId) + ' – ' + esc(photos[w.b].photoId) + ': ' + w.score; }).join(' · ') + '</div></div>';
+      });
+      h += '</div>';
+    } else h += '<p class="note">None.</p>';
+
+    h += '<h2>Photos of different IDs that match (' + plural(F.merged.length, 'pair') + ')</h2>';
+    h += F.merged.length ? '<p class="note">The same frog may be filed under two IDs. Within one tank this is often two frogs swapped when the photos were taken.</p><div class="pairs">' + F.merged.map(pairCard).join('') + '</div>' : '<p class="note">None.</p>';
+
+    h += '<h2>Close to the threshold (' + plural(F.near.length, 'pair') + ')</h2>';
+    h += F.near.length ? '<details><summary>Different IDs with ' + RosterCheck.NEAR_MIN + ' to ' + (M - 1) + ' matching points: not called a match, but look at them</summary><div class="pairs">' + F.near.map(pairCard).join('') + '</div></details>' : '<p class="note">None.</p>';
+
+    h += '<h2>Not checked</h2><div class="stack">';
+    var chips = function (list) { return '<div class="chips">' + list.map(function (id) { return '<span class="chip">#' + id + '</span>'; }).join('') + '</div>'; };
+    if (F.missing.length) h += '<div><div class="ttl">In the colony with no photo (' + F.missing.length + ')</div>' + chips(F.missing) + '</div>';
+    h += '<div><div class="ttl">One photo only (' + F.lone.length + ')</div><p class="note">Checked against other IDs, but there is nothing of their own to check it against.</p>' + (F.lone.length ? chips(F.lone) : '') + '</div>';
+    if (F.unreadable.length) h += '<div><div class="ttl">Photos that could not be compared (' + F.unreadable.length + ')</div><p class="note">No back pattern yet (open the frog in the app once to make it) or too little detail.</p><div class="chips">' +
+      F.unreadable.map(function (i) { return '<span class="chip">#' + photos[i].frog + ' ' + esc(photos[i].photoId) + '</span>'; }).join('') + '</div></div>';
+    if (F.outside.length) h += '<p class="note">' + plural(F.outside.length, 'photo') + ' of frogs not in the colony left out.</p>';
+    h += '<p class="note">A frog photographed only under the wrong ID, with no other photo of it, looks correct here: the check finds photos that disagree, not a mix-up repeated in every photo.</p></div>';
+
+    var heads = ['Matching points', 'Same ID, different days', 'Same ID, same day', 'Different IDs'];
+    h += '<h2>Scores</h2><table class="bins"><thead><tr>' + heads.map(function (x) { return '<th>' + x + '</th>'; }).join('') + '</tr></thead><tbody>' +
+      F.binRanges.map(function (r, k) {
+        return '<tr><td>' + (r[1] === Infinity ? r[0] + ' or more' : r[0] === r[1] ? r[0] : r[0] + '–' + r[1]) + '</td><td>' + F.bins.sameDays[k] + '</td><td>' + F.bins.sameDay[k] + '</td><td>' + F.bins.other[k] + '</td></tr>';
+      }).join('') + '</tbody></table>' +
+      '<p class="note">Photos of one frog taken the same day share light and pose, so they match more easily than photos from different days.</p>' +
+      '<div class="btnrow"><button class="btn ghost inline" id="download">Download every pair (CSV)</button></div>';
+    $('result').innerHTML = h;
+    $('download').onclick = function () {
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([RosterCheck.pairsCsv(photos, pairs)], { type: 'text/csv' }));
+      a.download = 'roster-check-scores.csv';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+    };
+  }
+
+  $('csv-in').addEventListener('change', function (e) {
+    var files = Array.prototype.slice.call(e.target.files);
+    Promise.all(files.map(function (f) { return readText(f).then(function (t) { addCsvText(f.name, t); }); }))
+      .then(function () { say(''); }, function (err) { say(err.message || String(err)); })
+      .then(function () { e.target.value = ''; showLoaded(); });
+  });
+  $('img-in').addEventListener('change', function (e) {
+    addImageFiles(e.target.files).catch(function (err) { say(err.message || String(err)); }).then(function () { e.target.value = ''; showLoaded(); });
+  });
+  $('run').addEventListener('click', run);
+  $('clear').addEventListener('click', function () { C = { photos: [], frogs: null, sources: [], skipped: [] }; $('result').innerHTML = ''; say(''); showLoaded(); });
+  Matcher.load();      // start the download while files are being chosen
+
+  window.CheckPage = { addCsvText: function (name, text) { addCsvText(name, text); showLoaded(); }, addImageFiles: function (f) { return addImageFiles(f).then(showLoaded); }, run: run };
+})();
+</script>
+</body>
+</html>

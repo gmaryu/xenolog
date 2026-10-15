@@ -1,5 +1,6 @@
-"""Assembles ../Index.html (for Apps Script), dev.html (local test page with in-memory services, the example Roster.gs and Settings.gs)
-and ../docs/demo/index.html (the public demo: the same in-memory services with the made-up colony in demo.js)."""
+"""Assembles ../Index.html (for Apps Script), dev.html (local test page with in-memory services, the example Roster.gs and Settings.gs),
+../docs/demo/index.html (the public demo: the same in-memory services with the made-up colony in demo.js)
+and ../docs/check/index.html (the roster check, which runs outside the app)."""
 import pathlib
 d = pathlib.Path(__file__).parent
 gs = d.parent / 'apps-script' if (d.parent / 'apps-script').is_dir() else d.parent   # where Code.gs, Roster.gs and Index.html live
@@ -78,5 +79,29 @@ if (d.parent / 'docs').is_dir():      # only in the repository, not in a copy co
     out = d.parent / 'docs' / 'demo'
     out.mkdir(exist_ok=True)
     (out / 'index.html').write_text(page(demo))
+    sizes.append((out / 'index.html').stat().st_size)
+    # The roster check: a page of its own that runs on a computer, outside the app (see README).
+    out = d.parent / 'docs' / 'check'
+    out.mkdir(exist_ok=True)
+    (out / 'index.html').write_text(f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>XenoLog roster check</title>
+<link rel="icon" href="../favicon-32.png">
+<style>
+{r('style.css')}</style>
+</head>
+<body>
+{r('check-body.html')}<script>
+{r('matcher.js')}</script>
+<script>
+{r('rostercheck.js')}</script>
+<script>
+{r('check.js')}</script>
+</body>
+</html>
+""")
     sizes.append((out / 'index.html').stat().st_size)
 print('built', *sizes)

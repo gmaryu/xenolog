@@ -1,0 +1,43 @@
+<style>
+main { max-width: 960px; margin: 0 auto; padding-inline: 16px; padding-block: 0 48px; display: flex; flex-direction: column; gap: 14px; }
+main p { margin: 0; }
+.pick { display: flex; flex-direction: column; gap: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; }
+.pick input { font: inherit; font-size: 13.5px; max-width: 100%; }
+.loaded { font-size: 12.5px; color: var(--muted); }
+.pairs { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 8px; }
+.finding { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.groups, .photos { display: flex; flex-wrap: wrap; gap: 8px; }
+.groups { gap: 12px; }
+.photos figure { margin: 0; display: flex; flex-direction: column; gap: 4px; width: 132px; }
+.photos img, .photos .noimg { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 4px; background: var(--line); display: block; }
+.photos figcaption { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.photos figcaption strong { color: var(--fg); }
+.group { border-left: 3px solid var(--line); padding-left: 8px; }
+table.bins { border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; width: 100%; max-width: 560px; }
+table.bins th, table.bins td { border-bottom: 1px solid var(--line); padding: 4px 8px; text-align: right; }
+table.bins th:first-child, table.bins td:first-child { text-align: left; }
+details summary { cursor: pointer; font-size: 13.5px; }
+details > div { margin-top: 8px; }
+.btn.inline { width: auto; }
+</style>
+<main>
+  <header class="top"><h1>XenoLog roster check</h1></header>
+  <p class="note">Compares every frog photo with every other one and lists where the photos and the IDs disagree: photos filed under one ID that do not match each other, and photos filed under different IDs that do. It uses the same pattern check as the app, so it is a suggestion; look at the photos before changing anything. The files you choose are read in this browser and are not sent anywhere. The pattern check (OpenCV.js) is downloaded from jsDelivr the first time.</p>
+
+  <h2>1. Photos</h2>
+  <div class="pick">
+    <label for="csv-in"><span class="ttl">Sheet exports (CSV)</span></label>
+    <p class="note">In the spreadsheet, open the <strong>Photos</strong> sheet and choose File &gt; Download &gt; Comma-separated values. Do the same for the <strong>Frogs</strong> sheet (optional: it limits the check to frogs in the colony and lists frogs with no photo). Choose both files here. The backs are compared as they were cropped in the app.</p>
+    <input type="file" id="csv-in" accept=".csv,text/csv" multiple>
+  </div>
+  <div class="pick">
+    <label for="img-in"><span class="ttl">Or photo files</span></label>
+    <p class="note">Image files whose names start with the frog ID, such as <code>125.jpg</code>, <code>125 back.png</code>, or the app's own <code>frog-125_2026-10-14_P1a2b3c4d.jpg</code>. The back is found automatically, which misses on some photos.</p>
+    <input type="file" id="img-in" accept="image/*" multiple>
+  </div>
+  <p class="loaded" id="loaded" role="status">Nothing chosen yet.</p>
+  <div class="btnrow"><button class="btn" id="run" disabled>Check</button><button class="btn ghost" id="clear">Start over</button></div>
+  <p class="note" id="progress" role="status"></p>
+
+  <div id="result" class="stack"></div>
+</main>

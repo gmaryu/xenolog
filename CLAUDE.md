@@ -12,17 +12,19 @@ This repository is public. **Never add lab data here**: real rosters, frog photo
 - `apps-script/Index.html` – **generated**. Edit `src/` and rebuild.
 - `src/app.js` – page logic. `src/matcher.js` – photo crop and matching. `src/style.css`, `src/body.html`.
 - `src/fakes.js` – in-memory stand-ins for SpreadsheetApp, DriveApp and friends.
+- `src/rostercheck.js` – roster check: every photo against every other, and what disagrees with the IDs. `src/check.js` and `src/check-body.html` are its page; `docs/check/index.html` is **generated** from them by `build.py`. It runs outside the app on a computer and is not deployed to Apps Script, so it can change during data collection. Keep its `MATCH_MIN` equal to `app.js`'s (the test checks).
 - `src/demo.js` – made-up colony for the public demo. `docs/demo/index.html` is **generated** from it by `build.py`; commit it with the rebuild.
 - `docs/` – GitHub Pages: forwarding page and icons.
 
 ## Commands
 
 ```bash
-cd src && python3 build.py      # writes ../apps-script/Index.html, src/dev.html and ../docs/demo/index.html
+cd src && python3 build.py      # writes ../apps-script/Index.html, src/dev.html, ../docs/demo/index.html and ../docs/check/index.html
 cd src && node test-server.js   # server logic against in-memory sheets
+cd src && node test-check.js    # roster check logic with made-up scores
 ```
 
-Run both after any change to `Code.gs`, `Settings.gs` or `src/`. `dev.html` runs the whole app in a browser with fake data; serve the repository root over http (`.claude/launch.json` has a `xenolog` entry) and open `/src/dev.html`. Real photos for crop or matching checks are in `../xenolog-lab/Frogs_Picture/` and must be served separately, never copied in.
+Run all three after any change to `Code.gs`, `Settings.gs` or `src/`. `dev.html` runs the whole app in a browser with fake data; serve the repository root over http (`.claude/launch.json` has a `xenolog` entry) and open `/src/dev.html`. Real photos for crop or matching checks are in `../xenolog-lab/Frogs_Picture/` and must be served separately, never copied in.
 
 ## Things that are easy to get wrong
 

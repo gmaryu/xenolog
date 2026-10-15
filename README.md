@@ -97,6 +97,18 @@ You can also use the page published from the original repository instead of your
 
 Put image files named after the frog (`125.jpg`, `125 back.png`) into the `import` folder inside "XenoLog photos", then run **Import photos from Drive folder**. Open each frog once in the app and use **Adjust crop** to check the crop. If a photo turns out to show a different frog, use **Remove** under it; it stops being shown or compared, and the file stays in Drive. If you want to keep photos in a folder you made yourself, run **Choose photo folder** first.
 
+### Checking photos against IDs (optional)
+
+Once most frogs have a photo, the [roster check](https://gmaryu.github.io/xenolog/check/) compares every photo with every other one, on a computer, and lists where the photos and the IDs disagree:
+
+- **IDs whose photos do not match each other.** One of the photos may show another frog; under each photo is the other ID it matches best. A blurred photo or a crop that misses the back also lands here.
+- **Photos of different IDs that match.** The same frog filed under two IDs; within one tank, often two frogs swapped when they were photographed.
+- **Close to the threshold**, frogs in the colony with no photo, and frogs with only one photo, which have nothing of their own to be checked against.
+
+Export the **Photos** sheet (and, optionally, the **Frogs** sheet) with File > Download > Comma-separated values and choose the files on the page; the backs are compared as they were cropped in the app. Image files named by frog ID work too, with automatic cropping. The files are read in the browser and not sent anywhere. The page also opens from `docs/check/index.html` in a copy of this repository.
+
+It changes nothing. Fix what it finds in the app (**Remove** under a photo, or **Adjust crop**) and run it again. It finds photos that disagree, not a mix-up repeated in every photo of a frog: a frog photographed only under the wrong ID looks correct. Comparing takes about 50 ms a pair on a recent laptop, so 140 photos (about 10,000 pairs) take around 8 minutes. On the 65 registration photos of the original lab, all 2,080 pairs of different frogs gave 5 points or fewer.
+
 ### Legacy records (optional)
 
 `importLegacy` in `Code.gs` reads two sheets from the original lab's spreadsheet ("Form Responses 1" from a Google Form, and "Shared with ULAM", the sheet the veterinary staff read). It is specific to those column layouts. Skip it for a new colony, or adapt it to your own history.
@@ -113,13 +125,16 @@ Sources are in `src/`. `apps-script/Index.html` is generated; do not edit it by 
 
 ```bash
 cd src
-python3 build.py          # writes ../apps-script/Index.html, a local test page (dev.html) and the demo (../docs/demo/)
+python3 build.py          # writes ../apps-script/Index.html, a local test page (dev.html), the demo (../docs/demo/) and the roster check (../docs/check/)
 node test-server.js       # runs Code.gs against in-memory sheets
+node test-check.js        # runs the roster check's logic (rostercheck.js) on made-up scores
 ```
 
 `dev.html` runs the whole app in a normal browser with in-memory data, which is the quickest way to try a change. Serve the folder over http (for example `python3 -m http.server`) because the photo code needs it.
 
 `docs/demo/index.html` is the same page with the made-up colony in `src/demo.js` (a year of weekly primings simulated from a fixed seed, dates counted back from today, drawn frogs with generated back patterns). It is published with the forwarding page, so rebuild and commit it with every change to `src/` or `Code.gs`. The drawn photos are made so that the pattern check behaves as on real photos: with all 50 frogs, no pair of different frogs reached 8 points (2,450 pairs), and the same frog gave 108 or more. A plain or finely speckled background broke this (different frogs reached 20 to 50 points, because the check boosts contrast before looking), so keep the uneven tray if the drawing is changed, and measure again.
+
+`docs/check/index.html` is the roster check, built from `src/check-body.html`, `src/check.js`, `src/rostercheck.js` and the same `matcher.js` as the app. It is not part of the Apps Script deployment, so changing it needs no new app version. Rebuild and commit it with every change to those files or to `matcher.js`.
 
 ## Related work
 
