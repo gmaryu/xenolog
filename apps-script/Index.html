@@ -502,21 +502,22 @@ var Matcher = (function () {
   }
   // Frogs are used in rounds: tank order, then ID order, wrapping from the last tank to Tank 1. A frog resting when its
   // turn comes waits for the next round; the rest period is the only fixed rule. Where the round stands is read from
-  // the priming dates in that order: recent dates up to the frog used last in the round, older ones after it. The round
-  // continues after the sharpest fall from recent to older, compared over a few frogs on each side, so a single frog
-  // used out of turn does not move it. Frogs in today's priming count as used today. Frogs never primed take no part
-  // in finding the position and are used when the round reaches them.
+  // the saved priming dates: read round from the right place, they rise from the oldest to the frog used last. The
+  // round continues after the frog where they rise most consistently (fewest pairs out of date order; on a tie, the
+  // most recent frog), so a frog used out of turn does not move it. Frogs never primed take no part in finding the
+  // place and are used when the round reaches them. Frogs in today's priming are skipped, not counted as used.
   function round() {
     var list = colony().filter(function (f) { return f.tank; }).sort(function (a, b) { return a.tank - b.tank || a.id - b.id; });
-    var dated = [];
-    list.forEach(function (f, n) { var d = inBasket(f.id) ? S.data.today : f.lastPriming; if (d) dated.push({ n: n, day: toDate(d) / DAY }); });
-    var w = Math.min(Math.max(2, S.data.primingBatch), Math.floor(dated.length / 2)), best = 0, after = null;
-    function median(k0, len) { var v = []; for (var k = 0; k < len; k++) v.push(dated[(k0 + k + dated.length) % dated.length].day); v.sort(function (a, b) { return a - b; }); return (v[(len - 1) >> 1] + v[len >> 1]) / 2; }
-    for (var i = 0; w >= 1 && i < dated.length; i++) {
-      var fall = median(i - w + 1, w) - median(i + 1, w);
-      if (fall > best) { best = fall; after = dated[i].n; }
+    var dated = [], m, best = null, bestInv = Infinity;
+    list.forEach(function (f, n) { if (f.lastPriming) dated.push({ n: n, d: f.lastPriming }); });
+    m = dated.length;
+    for (var b = 0; b < m; b++) {
+      var inv = 0;
+      for (var j = 1; j < m && inv <= bestInv; j++) for (var k = j + 1; k <= m; k++) if (dated[(b + j) % m].d > dated[(b + k) % m].d) inv++;
+      if (inv < bestInv || (inv === bestInv && dated[b].d > dated[best].d)) { bestInv = inv; best = b; }
     }
-    return { list: list, start: after === null ? 0 : (after + 1) % list.length, after: after === null ? null : list[after] };
+    var after = best === null ? null : list[dated[best].n];
+    return { list: list, start: best === null ? 0 : (dated[best].n + 1) % list.length, after: after };
   }
   // The next primingBatch frogs of the round, less those already in today's priming (at least one).
   function nextFrogs() {
