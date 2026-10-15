@@ -9,7 +9,7 @@ It runs as a Google Apps Script web app bound to a spreadsheet. There is no serv
 ## What it does
 
 - **Priming.** Pick a housing tank, photograph the frog you took out, and confirm which of the frogs in that tank it is. Saving marks the frog as in use for everyone at once.
-- **Rest period.** A frog cannot be primed again until the rest period (3 months by default) has passed. The tank of the next frog to use is listed first: the available frog that has rested longest, where frogs primed up to `sameCycleDays` (14) days after it count as the same cycle and are taken in tank order, then ID order, so small shifts between neighbours even out. A new frog waits for its tank's turn: once a tank-mate (or, in a tank of new frogs, a frog of the tank before) has been primed since its arrival date, it follows the tank-mates still waiting, in ID order. The other tanks follow in tank order. Tanks that mix resting and available frogs are marked, because those are the ones where a mix-up matters.
+- **Rest period.** A frog cannot be primed again until the rest period (3 months by default) has passed. The tanks of the next frogs to use (`primingBatch` of them, 4 by default) are listed first. Each in turn is the available frog that has rested longest, where frogs primed up to `sameCycleDays` (14) days after it count as the same cycle and are taken in tank order, then ID order, so small shifts between neighbours even out. A new frog waits for its tank's turn: once a tank-mate (or, in a tank of new frogs, a frog of the tank before) has been primed since its arrival date, it follows the tank-mates still waiting, in ID order. The other tanks follow in tank order, with tanks that have no available frog last. Tanks that mix resting and available frogs are marked, because those are the ones where a mix-up matters.
 - **Egg record.** Quantity, appearance and Ca-activation result for squeezed and laid eggs, plus comments. The Ca-activation result and comments stay editable afterwards.
 - **Return.** The app shows which housing tank the frog goes back to.
 - **Photos.** Each photo is cropped to the back in a crop screen and stored in Google Drive. Earlier photos of each frog can be compared side by side with the new one.
@@ -67,6 +67,7 @@ You can edit Frogs and Records by hand. Keep the header row and column order, an
 - `appName`, `faviconUrl`
 - `restMonths` – rest period after a priming
 - `tankSize` – frogs per housing tank
+- `primingBatch` – how many frogs are usually primed together; the Priming tab suggests that many
 - `sameCycleDays` – how far apart two last primings may be and still count as the same cycle when the next frog is suggested
 - `removalReasons` – the reasons offered when a frog is removed
 - `recordTiming` – on by default; see below

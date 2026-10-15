@@ -51,8 +51,10 @@
   // tank's turn: until a tank-mate (or, with none primed, a frog of the tank before) is primed on or after its arrival.
   // From then on it goes with the tank-mates not yet primed this turn, and after them it counts as rested longest.
   // Frogs without an arrival date were there from the start and count as rested longest.
-  function nextFrog() {
-    var tanks = tankNos(), primed = function (f) { return inBasket(f.id) ? S.data.today : f.lastPriming; };
+  // picks: frogs already suggested, treated like frogs in today's priming.
+  function nextFrog(picks) {
+    var tanks = tankNos(), picked = function (f) { return inBasket(f.id) || picks.indexOf(f) >= 0; };
+    var primed = function (f) { return picked(f) ? S.data.today : f.lastPriming; };
     function since(f) {      // the date it is ranked by; null while its tank's turn has not come
       if (f.lastPriming || !f.arrival) return f.lastPriming;
       var mates = inTank(f.tank).filter(function (g) { return g !== f && primed(g); });
@@ -60,7 +62,7 @@
       if (!mates.some(function (g) { return primed(g) >= f.arrival; })) return null;
       return mates.reduce(function (m, g) { var d = primed(g); return d < f.arrival && (m === '' || d < m) ? d : m; }, '');
     }
-    var all = colony().filter(function (f) { return f.tank && status(f).k === 'ok'; }).map(function (f) { return { f: f, d: since(f) }; });
+    var all = colony().filter(function (f) { return f.tank && status(f).k === 'ok' && !picked(f); }).map(function (f) { return { f: f, d: since(f) }; });
     var ok = all.filter(function (o) { return o.d !== null; });
     if (!ok.length) ok = all.map(function (o) { return { f: o.f, d: o.f.lastPriming }; });
     if (!ok.length) return null;
@@ -68,6 +70,12 @@
     var f = ok.filter(function (o) { return oldest === '' ? o.d === '' : daysBetween(oldest, o.d) <= S.data.sameCycleDays; })
       .map(function (o) { return o.f; }).sort(function (a, b) { return a.tank - b.tank || a.id - b.id; })[0];
     return { frog: f, oldest: oldest };
+  }
+  // The next primingBatch frogs, less those already in today's priming (at least one).
+  function nextFrogs() {
+    var picks = [], oldest = null, n = Math.max(1, S.data.primingBatch - S.basket.length);
+    while (picks.length < n) { var nx = nextFrog(picks); if (!nx) break; if (oldest === null) oldest = nx.oldest; picks.push(nx.frog); }
+    return { frogs: picks, oldest: oldest };
   }
   function refs(t, id) { return (S.tankPhotos[t] && S.tankPhotos[t][id]) || []; }
   function ranked(t) {
@@ -227,14 +235,14 @@
   }
 
   /* ---------- screens ---------- */
-  function tankRow(i, next) {
+  function tankRow(i, picks) {
     var sub = i.kind === 0 ? 'Resting frogs here: check the photo' : i.kind === 2 ? 'No available frog' : '';
-    return '<button class="row' + (next ? ' next' : '') + (i.kind === 2 ? ' none-ok' : '') + '" data-act="openTank" data-id="' + i.t + '" id="tank-' + i.t + '"><div class="grow"><div class="ttl">Tank ' + i.t + '</div><div class="chips">' +
-      i.all.map(function (f) { return '<span class="chip ' + status(f).k + (next && f === next ? ' next' : '') + '">#' + f.id + '</span>'; }).join('') + '</div>' +
+    return '<button class="row' + (picks ? ' next' : '') + (i.kind === 2 ? ' none-ok' : '') + '" data-act="openTank" data-id="' + i.t + '" id="tank-' + i.t + '"><div class="grow"><div class="ttl">Tank ' + i.t + '</div><div class="chips">' +
+      i.all.map(function (f) { return '<span class="chip ' + status(f).k + (picks && picks.indexOf(f) >= 0 ? ' next' : '') + '">#' + f.id + '</span>'; }).join('') + '</div>' +
       (sub ? '<div class="sub">' + sub + '</div>' : '') + '</div><div class="count" title="available / in tank">' + i.ok + '/' + i.present.length + '</div></button>';
   }
   function vTanks() {
-    var infos = tankNos().map(tankInfo), nx = nextFrog(), next = nx && nx.frog;
+    var infos = tankNos().map(tankInfo), nx = nextFrogs(), next = nx.frogs;
     var h = head('Priming') + who();
     h += '<div class="basket"><div><strong>Today\'s priming</strong> <span class="count">' + plural(S.basket.length, 'frog') + '</span></div>';
     if (S.basket.length) {
@@ -243,12 +251,16 @@
     } else h += '<p class="note">Take a frog out, then choose its tank below.</p>';
     h += '</div>';
     if (S.shot) h += '<div class="row static">' + ph(S.shot.thumb, 40, 'new') + '<div class="grow"><div class="ttl">Photo not used yet</div><div class="sub">Taken while Tank ' + S.shot.takenIn + ' was open. Open the tank this frog came from to compare it there.</div></div><button class="link" data-act="dropShot" id="btn-drop-shot">Discard</button></div>';
-    if (next) {
-      h += '<h2>Next: #' + next.id + ' in Tank ' + next.tank + '</h2><div class="stack">' + tankRow(infos.filter(function (i) { return i.t === next.tank; })[0], next) + '</div>';
-      h += '<p class="note">' + (nx.oldest ? 'Longest rest: last priming ' + nx.oldest + '. Frogs primed up to ' + plural(S.data.sameCycleDays, 'day') + ' after that are taken in tank order, then ID order.' : 'Never primed' + (next.arrival ? ', and its tank\'s turn has come' : '') + '. Such frogs come first, in tank order, then ID order.') + ' A new frog waits for its tank\'s turn.' + ' Any available frog can be used.</p>';
-      infos = infos.filter(function (i) { return i.t !== next.tank; });
+    if (next.length) {
+      var nt = [];
+      next.forEach(function (f) { if (nt.indexOf(f.tank) < 0) nt.push(f.tank); });
+      h += '<h2>Next ' + (next.length > 1 ? next.length + ': ' : ': ') + next.map(function (f) { return '#' + f.id; }).join(', ') + '</h2><div class="stack">' +
+        nt.map(function (t) { return tankRow(infos.filter(function (i) { return i.t === t; })[0], next); }).join('') + '</div>';
+      h += '<p class="note">' + (nx.oldest ? 'Longest rest: last priming ' + nx.oldest + '. Frogs primed up to ' + plural(S.data.sameCycleDays, 'day') + ' after that are taken in tank order, then ID order.' : 'Frogs never primed come first, in tank order, then ID order.') + ' A new frog waits for its tank\'s turn. Any available frog can be used.</p>';
+      infos = infos.filter(function (i) { return nt.indexOf(i.t) < 0; });
       if (infos.length) h += '<h2>Other tanks</h2>';
     } else h += '<p class="note">No frog is available right now.</p><h2>Tanks</h2>';
+    infos.sort(function (a, b) { return (a.kind === 2) - (b.kind === 2) || a.t - b.t; });   // tank order; tanks with no available frog last
     h += '<div class="stack">' + infos.map(function (i) { return tankRow(i, null); }).join('') + '</div>';
     return h;
   }
