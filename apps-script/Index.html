@@ -68,7 +68,7 @@ h2 { font-size: 12.5px; font-weight: 700; color: var(--muted); letter-spacing: .
 .chip.use { background: var(--use-bg); color: var(--use); border-color: transparent; }
 .chip.next { box-shadow: 0 0 0 2px var(--accent); }
 .row.next { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
-.row.empty { opacity: .6; }
+.row.none-ok { opacity: .6; }
 .count { font-family: var(--font-id); font-size: 15px; font-weight: 500; white-space: nowrap; }
 .ph { border-radius: 4px; display: block; flex: none; background: var(--line); }
 .ph.fill { width: 100%; height: auto; aspect-ratio: 1; }
@@ -683,7 +683,7 @@ var Matcher = (function () {
   /* ---------- screens ---------- */
   function tankRow(i, next) {
     var sub = i.kind === 0 ? 'Resting frogs here: check the photo' : i.kind === 2 ? 'No available frog' : '';
-    return '<button class="row' + (next ? ' next' : '') + (i.kind === 2 ? ' empty' : '') + '" data-act="openTank" data-id="' + i.t + '" id="tank-' + i.t + '"><div class="grow"><div class="ttl">Tank ' + i.t + '</div><div class="chips">' +
+    return '<button class="row' + (next ? ' next' : '') + (i.kind === 2 ? ' none-ok' : '') + '" data-act="openTank" data-id="' + i.t + '" id="tank-' + i.t + '"><div class="grow"><div class="ttl">Tank ' + i.t + '</div><div class="chips">' +
       i.all.map(function (f) { return '<span class="chip ' + status(f).k + (next && f === next ? ' next' : '') + '">#' + f.id + '</span>'; }).join('') + '</div>' +
       (sub ? '<div class="sub">' + sub + '</div>' : '') + '</div><div class="count" title="available / in tank">' + i.ok + '/' + i.present.length + '</div></button>';
   }

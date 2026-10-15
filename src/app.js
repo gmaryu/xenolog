@@ -229,7 +229,7 @@
   /* ---------- screens ---------- */
   function tankRow(i, next) {
     var sub = i.kind === 0 ? 'Resting frogs here: check the photo' : i.kind === 2 ? 'No available frog' : '';
-    return '<button class="row' + (next ? ' next' : '') + (i.kind === 2 ? ' empty' : '') + '" data-act="openTank" data-id="' + i.t + '" id="tank-' + i.t + '"><div class="grow"><div class="ttl">Tank ' + i.t + '</div><div class="chips">' +
+    return '<button class="row' + (next ? ' next' : '') + (i.kind === 2 ? ' none-ok' : '') + '" data-act="openTank" data-id="' + i.t + '" id="tank-' + i.t + '"><div class="grow"><div class="ttl">Tank ' + i.t + '</div><div class="chips">' +
       i.all.map(function (f) { return '<span class="chip ' + status(f).k + (next && f === next ? ' next' : '') + '">#' + f.id + '</span>'; }).join('') + '</div>' +
       (sub ? '<div class="sub">' + sub + '</div>' : '') + '</div><div class="count" title="available / in tank">' + i.ok + '/' + i.present.length + '</div></button>';
   }
