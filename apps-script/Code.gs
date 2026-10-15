@@ -49,7 +49,7 @@ function setting_(key) {
 const PHOTOS_PER_FROG = 5;      // newest photos sent to the page for comparison
 const CELL_LIMIT = 49000;       // Sheets refuses cells over 50,000 characters
 
-const APP_VERSION = '1.0.0';   // written into the Timing sheet, so collected data can be tied to a release
+const APP_VERSION = '1.1.0';   // written into the Timing sheet, so collected data can be tied to a release
 const SHEETS = { FROGS: 'Frogs', RECORDS: 'Records', PHOTOS: 'Photos', MATCH: 'Match log', TIMING: 'Timing', VET: 'Vet view', CHECK: 'Import check' };
 const LEGACY = { FORM: 'Form Responses 1', SHARED: 'Shared with ULAM' };
 
@@ -201,13 +201,13 @@ function photoCells_(row) {
 
 function buildState_(withThumbs) {
   const today = today_();
-  const last = {}, open = {}, scored = {};
+  const last = {}, lastRow = {}, open = {}, scored = {};
   readRecords_().forEach(function (r) {
     if (r.state === 'Cancelled') return;                 // entered by mistake: does not count as a use
     const cs = cycleScore_(r);
     if (cs !== null) (scored[r.frog] = scored[r.frog] || []).push({ date: r.collection, score: cs });
     const used = r.priming || r.collection;
-    if (used && used <= today && (!last[r.frog] || used > last[r.frog])) last[r.frog] = used;
+    if (used && used <= today && (!last[r.frog] || used >= last[r.frog])) { last[r.frog] = used; lastRow[r.frog] = r.row; }
     if (isOpen_(r)) open[r.frog] = publicRecord_(r);
   });
   const count = {}, newest = {};
@@ -219,8 +219,13 @@ function buildState_(withThumbs) {
     if (withThumbs && f.inColony && newest[f.id]) o.thumb = photoCells_(newest[f.id]).thumb;
     return o;
   });
+  // The frog in the colony primed most recently (same day: the later row). The page starts its suggestion after it.
+  let lastPrimed = null;
+  frogs.forEach(function (f) {
+    if (f.inColony && last[f.id] && (!lastPrimed || last[f.id] > last[lastPrimed] || (last[f.id] === last[lastPrimed] && lastRow[f.id] > lastRow[lastPrimed]))) lastPrimed = f.id;
+  });
   const Q = setting_('quality');
-  return { user: user_(), today: today, recordTiming: setting_('recordTiming'), restMonths: setting_('restMonths'), tankSize: setting_('tankSize'), appName: setting_('appName'),
+  return { user: user_(), today: today, lastPrimed: lastPrimed, recordTiming: setting_('recordTiming'), restMonths: setting_('restMonths'), tankSize: setting_('tankSize'), appName: setting_('appName'),
     options: setting_('options'), removalReasons: setting_('removalReasons'), frogs: frogs,
     qualityRule: { squeezed: Math.round(Q.squeezedWeight * 100), cycles: Q.cycles, threshold: Q.threshold, firstThreshold: Q.firstThreshold } };
 }

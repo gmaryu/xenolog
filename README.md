@@ -9,7 +9,7 @@ It runs as a Google Apps Script web app bound to a spreadsheet. There is no serv
 ## What it does
 
 - **Priming.** Pick a housing tank, photograph the frog you took out, and confirm which of the frogs in that tank it is. Saving marks the frog as in use for everyone at once.
-- **Rest period.** A frog cannot be primed again until the rest period (3 months by default) has passed. Tanks that mix resting and available frogs are listed first, because those are the ones where a mix-up matters.
+- **Rest period.** A frog cannot be primed again until the rest period (3 months by default) has passed. Tanks are listed in tank order, starting with the tank of the next frog to use: the first available frog, in tank order and then ID order, after the one primed last. Tanks that mix resting and available frogs are marked, because those are the ones where a mix-up matters.
 - **Egg record.** Quantity, appearance and Ca-activation result for squeezed and laid eggs, plus comments. The Ca-activation result and comments stay editable afterwards.
 - **Return.** The app shows which housing tank the frog goes back to.
 - **Photos.** Each photo is cropped to the back in a crop screen and stored in Google Drive. Earlier photos of each frog can be compared side by side with the new one.

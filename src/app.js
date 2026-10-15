@@ -46,6 +46,15 @@
     var p = present(t), ok = p.filter(function (f) { return status(f).k === 'ok'; }).length;
     return { t: t, all: inTank(t), present: p, ok: ok, kind: ok === 0 ? 2 : (ok < p.length ? 0 : 1) };
   }
+  // Frogs are used in tank order, then ID order. The suggestion is the first available frog after the one primed last
+  // (the last one picked today, else the last saved), going round to Tank 1 after the last tank.
+  function nextFrog() {
+    var list = colony().filter(function (f) { return f.tank; }).sort(function (a, b) { return a.tank - b.tank || a.id - b.id; });
+    var lastId = S.basket.length ? S.basket[S.basket.length - 1].id : S.data.lastPrimed, at = -1;
+    list.forEach(function (f, n) { if (f.id === lastId) at = n; });
+    for (var i = 1; i <= list.length; i++) { var f = list[(at + i) % list.length]; if (status(f).k === 'ok') return f; }
+    return null;
+  }
   function refs(t, id) { return (S.tankPhotos[t] && S.tankPhotos[t][id]) || []; }
   function ranked(t) {
     if (S.shot && S.shot.tank === t && S.shot.ranks) return S.shot.ranks.map(function (r) { return { f: frog(r.id), score: r.score }; }).filter(function (o) { return o.f && !inBasket(o.f.id); });
@@ -204,8 +213,14 @@
   }
 
   /* ---------- screens ---------- */
+  function tankRow(i, next) {
+    var sub = i.kind === 0 ? 'Resting frogs here: check the photo' : i.kind === 2 ? 'No available frog' : '';
+    return '<button class="row' + (next ? ' next' : '') + (i.kind === 2 ? ' empty' : '') + '" data-act="openTank" data-id="' + i.t + '" id="tank-' + i.t + '"><div class="grow"><div class="ttl">Tank ' + i.t + '</div><div class="chips">' +
+      i.all.map(function (f) { return '<span class="chip ' + status(f).k + (next && f === next ? ' next' : '') + '">#' + f.id + '</span>'; }).join('') + '</div>' +
+      (sub ? '<div class="sub">' + sub + '</div>' : '') + '</div><div class="count" title="available / in tank">' + i.ok + '/' + i.present.length + '</div></button>';
+  }
   function vTanks() {
-    var infos = tankNos().map(tankInfo).sort(function (a, b) { return a.kind - b.kind || a.t - b.t; });
+    var infos = tankNos().map(tankInfo), next = nextFrog(), at = 0;
     var h = head('Priming') + who();
     h += '<div class="basket"><div><strong>Today\'s priming</strong> <span class="count">' + plural(S.basket.length, 'frog') + '</span></div>';
     if (S.basket.length) {
@@ -214,17 +229,15 @@
     } else h += '<p class="note">Take a frog out, then choose its tank below.</p>';
     h += '</div>';
     if (S.shot) h += '<div class="row static">' + ph(S.shot.thumb, 40, 'new') + '<div class="grow"><div class="ttl">Photo not used yet</div><div class="sub">Taken while Tank ' + S.shot.takenIn + ' was open. Open the tank this frog came from to compare it there.</div></div><button class="link" data-act="dropShot" id="btn-drop-shot">Discard</button></div>';
-    var names = ['Tanks with resting frogs (check the photo)', 'Tanks where every frog is available', 'Tanks with no available frog'];
-    [0, 1, 2].forEach(function (k) {
-      var list = infos.filter(function (i) { return i.kind === k; });
-      if (!list.length) return;
-      h += '<h2>' + names[k] + '</h2><div class="stack">';
-      list.forEach(function (i) {
-        h += '<button class="row" data-act="openTank" data-id="' + i.t + '" id="tank-' + i.t + '"><div class="grow"><div class="ttl">Tank ' + i.t + '</div><div class="chips">' +
-          i.all.map(function (f) { return '<span class="chip ' + status(f).k + '">#' + f.id + '</span>'; }).join('') + '</div></div><div class="count" title="available / in tank">' + i.ok + '/' + i.present.length + '</div></button>';
-      });
-      h += '</div>';
-    });
+    if (next) {
+      infos.forEach(function (i, n) { if (i.t === next.tank) at = n; });
+      infos = infos.slice(at).concat(infos.slice(0, at));
+      h += '<h2>Next: #' + next.id + ' in Tank ' + next.tank + '</h2><div class="stack">' + tankRow(infos[0], next) + '</div>';
+      h += '<p class="note">Frogs are used in tank order, then ID order, after the frog primed last. Any available frog can be used.</p>';
+      infos = infos.slice(1);
+      if (infos.length) h += '<h2>Then, in tank order</h2>';
+    } else h += '<p class="note">No frog is available right now.</p><h2>Tanks</h2>';
+    h += '<div class="stack">' + infos.map(function (i) { return tankRow(i, null); }).join('') + '</div>';
     return h;
   }
 

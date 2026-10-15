@@ -66,6 +66,9 @@ h2 { font-size: 12.5px; font-weight: 700; color: var(--muted); letter-spacing: .
 .chip.ok { border-color: var(--ok); color: var(--ok); }
 .chip.rest { background: var(--rest-bg); color: var(--rest); border-color: transparent; }
 .chip.use { background: var(--use-bg); color: var(--use); border-color: transparent; }
+.chip.next { box-shadow: 0 0 0 2px var(--accent); }
+.row.next { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.row.empty { opacity: .6; }
 .count { font-family: var(--font-id); font-size: 15px; font-weight: 500; white-space: nowrap; }
 .ph { border-radius: 4px; display: block; flex: none; background: var(--line); }
 .ph.fill { width: 100%; height: auto; aspect-ratio: 1; }
@@ -475,7 +478,7 @@ function setting_(key) {
 const PHOTOS_PER_FROG = 5;      // newest photos sent to the page for comparison
 const CELL_LIMIT = 49000;       // Sheets refuses cells over 50,000 characters
 
-const APP_VERSION = '1.0.0';   // written into the Timing sheet, so collected data can be tied to a release
+const APP_VERSION = '1.1.0';   // written into the Timing sheet, so collected data can be tied to a release
 const SHEETS = { FROGS: 'Frogs', RECORDS: 'Records', PHOTOS: 'Photos', MATCH: 'Match log', TIMING: 'Timing', VET: 'Vet view', CHECK: 'Import check' };
 const LEGACY = { FORM: 'Form Responses 1', SHARED: 'Shared with ULAM' };
 
@@ -627,13 +630,13 @@ function photoCells_(row) {
 
 function buildState_(withThumbs) {
   const today = today_();
-  const last = {}, open = {}, scored = {};
+  const last = {}, lastRow = {}, open = {}, scored = {};
   readRecords_().forEach(function (r) {
     if (r.state === 'Cancelled') return;                 // entered by mistake: does not count as a use
     const cs = cycleScore_(r);
     if (cs !== null) (scored[r.frog] = scored[r.frog] || []).push({ date: r.collection, score: cs });
     const used = r.priming || r.collection;
-    if (used && used <= today && (!last[r.frog] || used > last[r.frog])) last[r.frog] = used;
+    if (used && used <= today && (!last[r.frog] || used >= last[r.frog])) { last[r.frog] = used; lastRow[r.frog] = r.row; }
     if (isOpen_(r)) open[r.frog] = publicRecord_(r);
   });
   const count = {}, newest = {};
@@ -645,8 +648,13 @@ function buildState_(withThumbs) {
     if (withThumbs && f.inColony && newest[f.id]) o.thumb = photoCells_(newest[f.id]).thumb;
     return o;
   });
+  // The frog in the colony primed most recently (same day: the later row). The page starts its suggestion after it.
+  let lastPrimed = null;
+  frogs.forEach(function (f) {
+    if (f.inColony && last[f.id] && (!lastPrimed || last[f.id] > last[lastPrimed] || (last[f.id] === last[lastPrimed] && lastRow[f.id] > lastRow[lastPrimed]))) lastPrimed = f.id;
+  });
   const Q = setting_('quality');
-  return { user: user_(), today: today, recordTiming: setting_('recordTiming'), restMonths: setting_('restMonths'), tankSize: setting_('tankSize'), appName: setting_('appName'),
+  return { user: user_(), today: today, lastPrimed: lastPrimed, recordTiming: setting_('recordTiming'), restMonths: setting_('restMonths'), tankSize: setting_('tankSize'), appName: setting_('appName'),
     options: setting_('options'), removalReasons: setting_('removalReasons'), frogs: frogs,
     qualityRule: { squeezed: Math.round(Q.squeezedWeight * 100), cycles: Q.cycles, threshold: Q.threshold, firstThreshold: Q.firstThreshold } };
 }
@@ -1485,6 +1493,15 @@ var Matcher = (function () {
     var p = present(t), ok = p.filter(function (f) { return status(f).k === 'ok'; }).length;
     return { t: t, all: inTank(t), present: p, ok: ok, kind: ok === 0 ? 2 : (ok < p.length ? 0 : 1) };
   }
+  // Frogs are used in tank order, then ID order. The suggestion is the first available frog after the one primed last
+  // (the last one picked today, else the last saved), going round to Tank 1 after the last tank.
+  function nextFrog() {
+    var list = colony().filter(function (f) { return f.tank; }).sort(function (a, b) { return a.tank - b.tank || a.id - b.id; });
+    var lastId = S.basket.length ? S.basket[S.basket.length - 1].id : S.data.lastPrimed, at = -1;
+    list.forEach(function (f, n) { if (f.id === lastId) at = n; });
+    for (var i = 1; i <= list.length; i++) { var f = list[(at + i) % list.length]; if (status(f).k === 'ok') return f; }
+    return null;
+  }
   function refs(t, id) { return (S.tankPhotos[t] && S.tankPhotos[t][id]) || []; }
   function ranked(t) {
     if (S.shot && S.shot.tank === t && S.shot.ranks) return S.shot.ranks.map(function (r) { return { f: frog(r.id), score: r.score }; }).filter(function (o) { return o.f && !inBasket(o.f.id); });
@@ -1643,8 +1660,14 @@ var Matcher = (function () {
   }
 
   /* ---------- screens ---------- */
+  function tankRow(i, next) {
+    var sub = i.kind === 0 ? 'Resting frogs here: check the photo' : i.kind === 2 ? 'No available frog' : '';
+    return '<button class="row' + (next ? ' next' : '') + (i.kind === 2 ? ' empty' : '') + '" data-act="openTank" data-id="' + i.t + '" id="tank-' + i.t + '"><div class="grow"><div class="ttl">Tank ' + i.t + '</div><div class="chips">' +
+      i.all.map(function (f) { return '<span class="chip ' + status(f).k + (next && f === next ? ' next' : '') + '">#' + f.id + '</span>'; }).join('') + '</div>' +
+      (sub ? '<div class="sub">' + sub + '</div>' : '') + '</div><div class="count" title="available / in tank">' + i.ok + '/' + i.present.length + '</div></button>';
+  }
   function vTanks() {
-    var infos = tankNos().map(tankInfo).sort(function (a, b) { return a.kind - b.kind || a.t - b.t; });
+    var infos = tankNos().map(tankInfo), next = nextFrog(), at = 0;
     var h = head('Priming') + who();
     h += '<div class="basket"><div><strong>Today\'s priming</strong> <span class="count">' + plural(S.basket.length, 'frog') + '</span></div>';
     if (S.basket.length) {
@@ -1653,17 +1676,15 @@ var Matcher = (function () {
     } else h += '<p class="note">Take a frog out, then choose its tank below.</p>';
     h += '</div>';
     if (S.shot) h += '<div class="row static">' + ph(S.shot.thumb, 40, 'new') + '<div class="grow"><div class="ttl">Photo not used yet</div><div class="sub">Taken while Tank ' + S.shot.takenIn + ' was open. Open the tank this frog came from to compare it there.</div></div><button class="link" data-act="dropShot" id="btn-drop-shot">Discard</button></div>';
-    var names = ['Tanks with resting frogs (check the photo)', 'Tanks where every frog is available', 'Tanks with no available frog'];
-    [0, 1, 2].forEach(function (k) {
-      var list = infos.filter(function (i) { return i.kind === k; });
-      if (!list.length) return;
-      h += '<h2>' + names[k] + '</h2><div class="stack">';
-      list.forEach(function (i) {
-        h += '<button class="row" data-act="openTank" data-id="' + i.t + '" id="tank-' + i.t + '"><div class="grow"><div class="ttl">Tank ' + i.t + '</div><div class="chips">' +
-          i.all.map(function (f) { return '<span class="chip ' + status(f).k + '">#' + f.id + '</span>'; }).join('') + '</div></div><div class="count" title="available / in tank">' + i.ok + '/' + i.present.length + '</div></button>';
-      });
-      h += '</div>';
-    });
+    if (next) {
+      infos.forEach(function (i, n) { if (i.t === next.tank) at = n; });
+      infos = infos.slice(at).concat(infos.slice(0, at));
+      h += '<h2>Next: #' + next.id + ' in Tank ' + next.tank + '</h2><div class="stack">' + tankRow(infos[0], next) + '</div>';
+      h += '<p class="note">Frogs are used in tank order, then ID order, after the frog primed last. Any available frog can be used.</p>';
+      infos = infos.slice(1);
+      if (infos.length) h += '<h2>Then, in tank order</h2>';
+    } else h += '<p class="note">No frog is available right now.</p><h2>Tanks</h2>';
+    h += '<div class="stack">' + infos.map(function (i) { return tankRow(i, null); }).join('') + '</div>';
     return h;
   }
 

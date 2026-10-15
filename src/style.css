@@ -58,6 +58,9 @@ h2 { font-size: 12.5px; font-weight: 700; color: var(--muted); letter-spacing: .
 .chip.ok { border-color: var(--ok); color: var(--ok); }
 .chip.rest { background: var(--rest-bg); color: var(--rest); border-color: transparent; }
 .chip.use { background: var(--use-bg); color: var(--use); border-color: transparent; }
+.chip.next { box-shadow: 0 0 0 2px var(--accent); }
+.row.next { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.row.empty { opacity: .6; }
 .count { font-family: var(--font-id); font-size: 15px; font-weight: 500; white-space: nowrap; }
 .ph { border-radius: 4px; display: block; flex: none; background: var(--line); }
 .ph.fill { width: 100%; height: auto; aspect-ratio: 1; }
