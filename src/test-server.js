@@ -101,8 +101,9 @@ assert.equal(getTankPhotos([10])[10][0].pattern, 'P2'); assert.equal(getThumbs()
 // record
 const rid = F(10).open.id;
 assert.throws(() => saveRecord(rid, { collection: '' }), /collection date/);
-st = saveRecord(rid, { collection: '2026-10-15', water: 'RO', sqQty: 'Many', sqApp: 'Great', sqCa: '', laidQty: 'Few', laidApp: 'bogus', laidCa: '', comments: 'c1' });
-assert.equal(F(10).open.state, 'Recorded'); assert.equal(F(10).open.laidApp, ''); assert.equal(F(10).open.sqQty, 'Many'); assert.equal(F(10).open.name, 'tester');
+FAKE.book.sheets['Records'].data[0].length = 19;   // a Records sheet made before 1.2.0
+st = saveRecord(rid, { collection: '2026-10-15', water: 'RO', sqQty: 'Many', sqApp: 'Great', sqCa: '', laidQty: 'Few', laidApp: 'bogus', laidCa: '', activity: '4', comments: 'c1' });
+assert.equal(F(10).open.state, 'Recorded'); assert.equal(F(10).open.laidApp, ''); assert.equal(F(10).open.sqQty, 'Many'); assert.equal(F(10).open.name, 'tester'); assert.equal(F(10).open.activity, '4'); assert.equal(FAKE.book.sheets['Records'].data[0][19], 'Frog activity');
 st = updateRecord(rid, { sqCa: 'Looking good', laidCa: 'Turned to white', comments: 'c2' });
 assert.equal(F(10).open.sqCa, 'Looking good'); assert.equal(F(10).open.laidCa, 'Turned to white'); assert.equal(F(10).open.comments, 'c2'); assert.equal(F(10).open.sqApp, 'Great');
 st = returnFrog(rid); assert.equal(F(10).open, null); assert.throws(() => returnFrog(rid), /already been returned/);

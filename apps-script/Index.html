@@ -799,7 +799,7 @@ var Matcher = (function () {
       '<button class="btn ghost" type="submit" id="btn-save-edit">Save changes</button></form>';
   }
   function summary(r) {
-    return '<dl class="kv"><dt>Priming date</dt><dd>' + (r.priming || '-') + '</dd><dt>Collection date</dt><dd>' + (r.collection || '-') + '</dd><dt>Recorded by</dt><dd>' + (esc(r.name) || '-') + '</dd><dt>MMR H2O source</dt><dd>' + (esc(r.water) || '-') + '</dd><dt>Squeezed eggs</dt><dd>' + esc((r.sqQty || '-') + ' / ' + (r.sqApp || '-')) + '</dd><dt>Laid eggs</dt><dd>' + esc((r.laidQty || '-') + ' / ' + (r.laidApp || '-')) + '</dd></dl><p class="note">Egg values are quantity / appearance.</p>';
+    return '<dl class="kv"><dt>Priming date</dt><dd>' + (r.priming || '-') + '</dd><dt>Collection date</dt><dd>' + (r.collection || '-') + '</dd><dt>Recorded by</dt><dd>' + (esc(r.name) || '-') + '</dd><dt>MMR H2O source</dt><dd>' + (esc(r.water) || '-') + '</dd><dt>Squeezed eggs</dt><dd>' + esc((r.sqQty || '-') + ' / ' + (r.sqApp || '-')) + '</dd><dt>Laid eggs</dt><dd>' + esc((r.laidQty || '-') + ' / ' + (r.laidApp || '-')) + '</dd><dt>Frog activity</dt><dd>' + (r.activity ? esc(r.activity) + ' of 5' : '-') + '</dd></dl><p class="note">Egg values are quantity / appearance.</p>';
   }
   function vUse(id) {
     var f = frog(id), r = f.open, o = S.data.options, h = head('Record for #' + id, true);
@@ -818,6 +818,7 @@ var Matcher = (function () {
       '<fieldset><legend>Quantity (laid eggs)</legend>' + segs('laidQty', o.quantity) + '</fieldset>' +
       '<fieldset><legend>Appearance (laid eggs)</legend>' + segs('laidApp', o.appearance) + '</fieldset>' +
       '<fieldset><legend>After Ca activation (laid eggs)</legend>' + segs('laidCa', o.ca) + '</fieldset>' +
+      '<fieldset><legend>Frog activity during collection</legend>' + segs('activity', ['1', '2', '3', '4', '5']) + '<p class="note">1 calm, barely moved · 5 struggled hard throughout</p></fieldset>' +
       '<label class="field"><span>Comments</span><textarea id="rec-memo" rows="2"></textarea></label>' +
       '<button class="btn" type="submit" id="btn-save-rec">Save record</button></form>' +
       '<button class="btn ghost" data-act="ret" data-id="' + id + '" id="btn-ret-unused">Not used, returned to Tank ' + f.tank + '</button>' +
@@ -858,8 +859,8 @@ var Matcher = (function () {
     h += '<h2>Use history</h2>';
     if (!d) h += '<p class="note">Loading...</p>';
     else if (!d.records.length) h += '<p class="note">No records yet.</p>';
-    else h += '<div class="scroll"><table><thead><tr><th></th><th>Primed</th><th>Collected</th><th>Score</th><th>Squeezed</th><th>Laid</th><th>Comments</th><th>By</th></tr></thead><tbody>' +
-      d.records.map(function (r, n) { return '<tr><td><button class="link" data-act="editHist" data-id="' + n + '" id="hist-' + n + '">Edit</button></td><td>' + (r.priming || '-') + '</td><td>' + (r.collection || (r.state === 'Not used' ? 'not used' : '-')) + '</td><td>' + (r.score == null ? '-' : r.score) + '</td><td>' + esc(egg(r, 'sq')) + '</td><td>' + esc(egg(r, 'laid')) + '</td><td>' + esc(r.comments) + '</td><td>' + esc(r.name) + '</td></tr>'; }).join('') + '</tbody></table></div><p class="note">Egg values are quantity / appearance / after Ca activation.</p>';
+    else h += '<div class="scroll"><table><thead><tr><th></th><th>Primed</th><th>Collected</th><th>Score</th><th>Squeezed</th><th>Laid</th><th>Activity</th><th>Comments</th><th>By</th></tr></thead><tbody>' +
+      d.records.map(function (r, n) { return '<tr><td><button class="link" data-act="editHist" data-id="' + n + '" id="hist-' + n + '">Edit</button></td><td>' + (r.priming || '-') + '</td><td>' + (r.collection || (r.state === 'Not used' ? 'not used' : '-')) + '</td><td>' + (r.score == null ? '-' : r.score) + '</td><td>' + esc(egg(r, 'sq')) + '</td><td>' + esc(egg(r, 'laid')) + '</td><td>' + (esc(r.activity) || '-') + '</td><td>' + esc(r.comments) + '</td><td>' + esc(r.name) + '</td></tr>'; }).join('') + '</tbody></table></div><p class="note">Egg values are quantity / appearance / after Ca activation.</p>';
     if (f.inColony && !f.open) {
       if (S.confirm === id) h += '<form class="rec" id="remove-form" data-id="' + id + '"><div class="alert danger">Remove #' + id + ' from the colony? Its records are kept and it is listed as removed.</div>' +
         '<fieldset><legend>Reason</legend>' + segs('removeReason', S.data.removalReasons) + '</fieldset>' +
@@ -1095,7 +1096,7 @@ var Matcher = (function () {
     if (form.id === 'rec-form') {
       var id = S.view.id, date = document.getElementById('rec-date').value;
       if (!date) { toast('Enter the collection date'); return; }
-      call('saveRecord', [rec, { collection: date, water: checked('water'), sqQty: checked('sqQty'), sqApp: checked('sqApp'), sqCa: checked('sqCa'), laidQty: checked('laidQty'), laidApp: checked('laidApp'), laidCa: checked('laidCa'), comments: document.getElementById('rec-memo').value }])
+      call('saveRecord', [rec, { collection: date, water: checked('water'), sqQty: checked('sqQty'), sqApp: checked('sqApp'), sqCa: checked('sqCa'), laidQty: checked('laidQty'), laidApp: checked('laidApp'), laidCa: checked('laidCa'), activity: checked('activity'), comments: document.getElementById('rec-memo').value }])
         .then(function (st) { applyState(st); go({ name: 'use', id: id }); }).catch(fail);
     } else if (form.id === 'edit-form' || form.id === 'hist-form') {
       var v = S.view;

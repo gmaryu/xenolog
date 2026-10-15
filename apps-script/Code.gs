@@ -50,7 +50,7 @@ function setting_(key) {
 const PHOTOS_PER_FROG = 5;      // newest photos sent to the page for comparison
 const CELL_LIMIT = 49000;       // Sheets refuses cells over 50,000 characters
 
-const APP_VERSION = '1.1.1';   // written into the Timing sheet, so collected data can be tied to a release
+const APP_VERSION = '1.2.0';   // written into the Timing sheet, so collected data can be tied to a release
 const SHEETS = { FROGS: 'Frogs', RECORDS: 'Records', PHOTOS: 'Photos', MATCH: 'Match log', TIMING: 'Timing', VET: 'Vet view', CHECK: 'Import check' };
 const LEGACY = { FORM: 'Form Responses 1', SHARED: 'Shared with ULAM' };
 
@@ -58,7 +58,9 @@ const FROG_COLS = ['Animal ID', 'Status', 'Tank', 'Arrival date', 'Source', 'Not
 const REC_COLS = ['Record ID', 'Animal ID', 'Priming Date', 'Collection Date', 'Name', 'MMR H2O source',
   'Quantity (Squeezed Eggs)', 'Appearance (Squeezed Eggs)', 'After Ca activation (Squeezed Eggs)',
   'Quantity (Laid Eggs)', 'Appearance (Laid Eggs)', 'After Ca activation (Laid Eggs)', 'Comments',
-  'State', 'Origin', 'Original values', 'Created at', 'Updated at', 'Updated by'];
+  'State', 'Origin', 'Original values', 'Created at', 'Updated at', 'Updated by', 'Frog activity'];
+const REC_TEXT = [1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19];   // Frog activity stays a number
+const ACTIVITY = ['1', '2', '3', '4', '5'];   // how much the frog moved and resisted during collection, 1 calm to 5 struggled hard
 const PHOTO_COLS = ['Photo ID', 'Animal ID', 'Date', 'Kind', 'Drive file ID', 'Thumb', 'Pattern', 'Embedding', 'Crop', 'Added by', 'Added at'];
 const MATCH_COLS = ['Time', 'User', 'Tank', 'Chosen ID', 'Suggested ID', 'Agreed', 'Matching points'];
 // One row per frog in a saved priming. The phone's clock time the frog's tank was opened, then seconds from there to each step
@@ -149,7 +151,7 @@ function readRecords_() {
   return body_(sheet_(SHEETS.RECORDS), REC_COLS.length).map(function (r, i) {
     return { row: i + 2, id: s_(r[0]), frog: Number(r[1]), priming: d_(r[2]), collection: d_(r[3]), name: s_(r[4]), water: s_(r[5]),
       sqQty: s_(r[6]), sqApp: s_(r[7]), sqCa: s_(r[8]), laidQty: s_(r[9]), laidApp: s_(r[10]), laidCa: s_(r[11]),
-      comments: s_(r[12]), state: s_(r[13]), origin: s_(r[14]) };
+      comments: s_(r[12]), state: s_(r[13]), origin: s_(r[14]), activity: s_(r[19]) };
   }).filter(function (r) { return r.id !== ''; });
 }
 
@@ -401,6 +403,8 @@ function saveRecord(recordId, f) {
       pick_(f.sqQty, O.quantity), pick_(f.sqApp, O.appearance), pick_(f.sqCa, O.ca),
       pick_(f.laidQty, O.quantity), pick_(f.laidApp, O.appearance), pick_(f.laidCa, O.ca),
       s_(f.comments), 'Recorded']]);
+    ensureSheet_(SHEETS.RECORDS, REC_COLS, REC_TEXT);   // adds the Frog activity heading to a sheet made before 1.2.0
+    sheet_(SHEETS.RECORDS).getRange(rec.row, 20).setValue(pick_(f.activity, ACTIVITY));
     touch_(rec.row);
     rebuildVet_();
     return buildState_(false);
@@ -535,7 +539,7 @@ function ensureSheet_(name, cols, textCols) {
 
 function setup() {
   const frogs = ensureSheet_(SHEETS.FROGS, FROG_COLS, [4, 5, 6, 7, 8, 9, 10]);
-  ensureSheet_(SHEETS.RECORDS, REC_COLS, [1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]);
+  ensureSheet_(SHEETS.RECORDS, REC_COLS, REC_TEXT);
   ensureSheet_(SHEETS.PHOTOS, PHOTO_COLS, [1, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
   ensureSheet_(SHEETS.MATCH, MATCH_COLS, [1, 2, 7]);
   if (setting_('recordTiming')) ensureSheet_(SHEETS.TIMING, TIMING_COLS, [1, 2, 3, 6, 13, 14, 17, 19, 20]);

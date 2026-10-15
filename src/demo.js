@@ -128,7 +128,7 @@ function demoSeed() {
   function record(frog, days, grade, state, name) {
     var r = REC_COLS.map(function () { return ''; }), g = grade ? DEMO_GRADES[grade] : null;
     r[0] = 'D' + (++k); r[1] = frog; r[2] = demoAgo(days); r[4] = name; r[13] = state; r[14] = 'app'; r[16] = r[17] = stamp; r[18] = name;
-    if (g) { r[3] = demoAgo(days - 1); r[5] = k % 3 ? 'MilliQ' : 'RO'; for (var i = 0; i < 6; i++) r[6 + i] = g[i]; }
+    if (g) { r[3] = demoAgo(days - 1); r[5] = k % 3 ? 'MilliQ' : 'RO'; for (var i = 0; i < 6; i++) r[6 + i] = g[i]; r[19] = String(1 + (frog + k) % 5); }
     recSheet.appendRow(r);
   }
   DEMO_FROGS.forEach(function (f, n) {

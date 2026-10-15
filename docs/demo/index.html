@@ -339,7 +339,7 @@ function demoSeed() {
   function record(frog, days, grade, state, name) {
     var r = REC_COLS.map(function () { return ''; }), g = grade ? DEMO_GRADES[grade] : null;
     r[0] = 'D' + (++k); r[1] = frog; r[2] = demoAgo(days); r[4] = name; r[13] = state; r[14] = 'app'; r[16] = r[17] = stamp; r[18] = name;
-    if (g) { r[3] = demoAgo(days - 1); r[5] = k % 3 ? 'MilliQ' : 'RO'; for (var i = 0; i < 6; i++) r[6 + i] = g[i]; }
+    if (g) { r[3] = demoAgo(days - 1); r[5] = k % 3 ? 'MilliQ' : 'RO'; for (var i = 0; i < 6; i++) r[6 + i] = g[i]; r[19] = String(1 + (frog + k) % 5); }
     recSheet.appendRow(r);
   }
   DEMO_FROGS.forEach(function (f, n) {
@@ -480,7 +480,7 @@ function setting_(key) {
 const PHOTOS_PER_FROG = 5;      // newest photos sent to the page for comparison
 const CELL_LIMIT = 49000;       // Sheets refuses cells over 50,000 characters
 
-const APP_VERSION = '1.1.1';   // written into the Timing sheet, so collected data can be tied to a release
+const APP_VERSION = '1.2.0';   // written into the Timing sheet, so collected data can be tied to a release
 const SHEETS = { FROGS: 'Frogs', RECORDS: 'Records', PHOTOS: 'Photos', MATCH: 'Match log', TIMING: 'Timing', VET: 'Vet view', CHECK: 'Import check' };
 const LEGACY = { FORM: 'Form Responses 1', SHARED: 'Shared with ULAM' };
 
@@ -488,7 +488,9 @@ const FROG_COLS = ['Animal ID', 'Status', 'Tank', 'Arrival date', 'Source', 'Not
 const REC_COLS = ['Record ID', 'Animal ID', 'Priming Date', 'Collection Date', 'Name', 'MMR H2O source',
   'Quantity (Squeezed Eggs)', 'Appearance (Squeezed Eggs)', 'After Ca activation (Squeezed Eggs)',
   'Quantity (Laid Eggs)', 'Appearance (Laid Eggs)', 'After Ca activation (Laid Eggs)', 'Comments',
-  'State', 'Origin', 'Original values', 'Created at', 'Updated at', 'Updated by'];
+  'State', 'Origin', 'Original values', 'Created at', 'Updated at', 'Updated by', 'Frog activity'];
+const REC_TEXT = [1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19];   // Frog activity stays a number
+const ACTIVITY = ['1', '2', '3', '4', '5'];   // how much the frog moved and resisted during collection, 1 calm to 5 struggled hard
 const PHOTO_COLS = ['Photo ID', 'Animal ID', 'Date', 'Kind', 'Drive file ID', 'Thumb', 'Pattern', 'Embedding', 'Crop', 'Added by', 'Added at'];
 const MATCH_COLS = ['Time', 'User', 'Tank', 'Chosen ID', 'Suggested ID', 'Agreed', 'Matching points'];
 // One row per frog in a saved priming. The phone's clock time the frog's tank was opened, then seconds from there to each step
@@ -579,7 +581,7 @@ function readRecords_() {
   return body_(sheet_(SHEETS.RECORDS), REC_COLS.length).map(function (r, i) {
     return { row: i + 2, id: s_(r[0]), frog: Number(r[1]), priming: d_(r[2]), collection: d_(r[3]), name: s_(r[4]), water: s_(r[5]),
       sqQty: s_(r[6]), sqApp: s_(r[7]), sqCa: s_(r[8]), laidQty: s_(r[9]), laidApp: s_(r[10]), laidCa: s_(r[11]),
-      comments: s_(r[12]), state: s_(r[13]), origin: s_(r[14]) };
+      comments: s_(r[12]), state: s_(r[13]), origin: s_(r[14]), activity: s_(r[19]) };
   }).filter(function (r) { return r.id !== ''; });
 }
 
@@ -831,6 +833,8 @@ function saveRecord(recordId, f) {
       pick_(f.sqQty, O.quantity), pick_(f.sqApp, O.appearance), pick_(f.sqCa, O.ca),
       pick_(f.laidQty, O.quantity), pick_(f.laidApp, O.appearance), pick_(f.laidCa, O.ca),
       s_(f.comments), 'Recorded']]);
+    ensureSheet_(SHEETS.RECORDS, REC_COLS, REC_TEXT);   // adds the Frog activity heading to a sheet made before 1.2.0
+    sheet_(SHEETS.RECORDS).getRange(rec.row, 20).setValue(pick_(f.activity, ACTIVITY));
     touch_(rec.row);
     rebuildVet_();
     return buildState_(false);
@@ -965,7 +969,7 @@ function ensureSheet_(name, cols, textCols) {
 
 function setup() {
   const frogs = ensureSheet_(SHEETS.FROGS, FROG_COLS, [4, 5, 6, 7, 8, 9, 10]);
-  ensureSheet_(SHEETS.RECORDS, REC_COLS, [1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]);
+  ensureSheet_(SHEETS.RECORDS, REC_COLS, REC_TEXT);
   ensureSheet_(SHEETS.PHOTOS, PHOTO_COLS, [1, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
   ensureSheet_(SHEETS.MATCH, MATCH_COLS, [1, 2, 7]);
   if (setting_('recordTiming')) ensureSheet_(SHEETS.TIMING, TIMING_COLS, [1, 2, 3, 6, 13, 14, 17, 19, 20]);
@@ -1789,7 +1793,7 @@ var Matcher = (function () {
       '<button class="btn ghost" type="submit" id="btn-save-edit">Save changes</button></form>';
   }
   function summary(r) {
-    return '<dl class="kv"><dt>Priming date</dt><dd>' + (r.priming || '-') + '</dd><dt>Collection date</dt><dd>' + (r.collection || '-') + '</dd><dt>Recorded by</dt><dd>' + (esc(r.name) || '-') + '</dd><dt>MMR H2O source</dt><dd>' + (esc(r.water) || '-') + '</dd><dt>Squeezed eggs</dt><dd>' + esc((r.sqQty || '-') + ' / ' + (r.sqApp || '-')) + '</dd><dt>Laid eggs</dt><dd>' + esc((r.laidQty || '-') + ' / ' + (r.laidApp || '-')) + '</dd></dl><p class="note">Egg values are quantity / appearance.</p>';
+    return '<dl class="kv"><dt>Priming date</dt><dd>' + (r.priming || '-') + '</dd><dt>Collection date</dt><dd>' + (r.collection || '-') + '</dd><dt>Recorded by</dt><dd>' + (esc(r.name) || '-') + '</dd><dt>MMR H2O source</dt><dd>' + (esc(r.water) || '-') + '</dd><dt>Squeezed eggs</dt><dd>' + esc((r.sqQty || '-') + ' / ' + (r.sqApp || '-')) + '</dd><dt>Laid eggs</dt><dd>' + esc((r.laidQty || '-') + ' / ' + (r.laidApp || '-')) + '</dd><dt>Frog activity</dt><dd>' + (r.activity ? esc(r.activity) + ' of 5' : '-') + '</dd></dl><p class="note">Egg values are quantity / appearance.</p>';
   }
   function vUse(id) {
     var f = frog(id), r = f.open, o = S.data.options, h = head('Record for #' + id, true);
@@ -1808,6 +1812,7 @@ var Matcher = (function () {
       '<fieldset><legend>Quantity (laid eggs)</legend>' + segs('laidQty', o.quantity) + '</fieldset>' +
       '<fieldset><legend>Appearance (laid eggs)</legend>' + segs('laidApp', o.appearance) + '</fieldset>' +
       '<fieldset><legend>After Ca activation (laid eggs)</legend>' + segs('laidCa', o.ca) + '</fieldset>' +
+      '<fieldset><legend>Frog activity during collection</legend>' + segs('activity', ['1', '2', '3', '4', '5']) + '<p class="note">1 calm, barely moved · 5 struggled hard throughout</p></fieldset>' +
       '<label class="field"><span>Comments</span><textarea id="rec-memo" rows="2"></textarea></label>' +
       '<button class="btn" type="submit" id="btn-save-rec">Save record</button></form>' +
       '<button class="btn ghost" data-act="ret" data-id="' + id + '" id="btn-ret-unused">Not used, returned to Tank ' + f.tank + '</button>' +
@@ -1848,8 +1853,8 @@ var Matcher = (function () {
     h += '<h2>Use history</h2>';
     if (!d) h += '<p class="note">Loading...</p>';
     else if (!d.records.length) h += '<p class="note">No records yet.</p>';
-    else h += '<div class="scroll"><table><thead><tr><th></th><th>Primed</th><th>Collected</th><th>Score</th><th>Squeezed</th><th>Laid</th><th>Comments</th><th>By</th></tr></thead><tbody>' +
-      d.records.map(function (r, n) { return '<tr><td><button class="link" data-act="editHist" data-id="' + n + '" id="hist-' + n + '">Edit</button></td><td>' + (r.priming || '-') + '</td><td>' + (r.collection || (r.state === 'Not used' ? 'not used' : '-')) + '</td><td>' + (r.score == null ? '-' : r.score) + '</td><td>' + esc(egg(r, 'sq')) + '</td><td>' + esc(egg(r, 'laid')) + '</td><td>' + esc(r.comments) + '</td><td>' + esc(r.name) + '</td></tr>'; }).join('') + '</tbody></table></div><p class="note">Egg values are quantity / appearance / after Ca activation.</p>';
+    else h += '<div class="scroll"><table><thead><tr><th></th><th>Primed</th><th>Collected</th><th>Score</th><th>Squeezed</th><th>Laid</th><th>Activity</th><th>Comments</th><th>By</th></tr></thead><tbody>' +
+      d.records.map(function (r, n) { return '<tr><td><button class="link" data-act="editHist" data-id="' + n + '" id="hist-' + n + '">Edit</button></td><td>' + (r.priming || '-') + '</td><td>' + (r.collection || (r.state === 'Not used' ? 'not used' : '-')) + '</td><td>' + (r.score == null ? '-' : r.score) + '</td><td>' + esc(egg(r, 'sq')) + '</td><td>' + esc(egg(r, 'laid')) + '</td><td>' + (esc(r.activity) || '-') + '</td><td>' + esc(r.comments) + '</td><td>' + esc(r.name) + '</td></tr>'; }).join('') + '</tbody></table></div><p class="note">Egg values are quantity / appearance / after Ca activation.</p>';
     if (f.inColony && !f.open) {
       if (S.confirm === id) h += '<form class="rec" id="remove-form" data-id="' + id + '"><div class="alert danger">Remove #' + id + ' from the colony? Its records are kept and it is listed as removed.</div>' +
         '<fieldset><legend>Reason</legend>' + segs('removeReason', S.data.removalReasons) + '</fieldset>' +
@@ -2085,7 +2090,7 @@ var Matcher = (function () {
     if (form.id === 'rec-form') {
       var id = S.view.id, date = document.getElementById('rec-date').value;
       if (!date) { toast('Enter the collection date'); return; }
-      call('saveRecord', [rec, { collection: date, water: checked('water'), sqQty: checked('sqQty'), sqApp: checked('sqApp'), sqCa: checked('sqCa'), laidQty: checked('laidQty'), laidApp: checked('laidApp'), laidCa: checked('laidCa'), comments: document.getElementById('rec-memo').value }])
+      call('saveRecord', [rec, { collection: date, water: checked('water'), sqQty: checked('sqQty'), sqApp: checked('sqApp'), sqCa: checked('sqCa'), laidQty: checked('laidQty'), laidApp: checked('laidApp'), laidCa: checked('laidCa'), activity: checked('activity'), comments: document.getElementById('rec-memo').value }])
         .then(function (st) { applyState(st); go({ name: 'use', id: id }); }).catch(fail);
     } else if (form.id === 'edit-form' || form.id === 'hist-form') {
       var v = S.view;
