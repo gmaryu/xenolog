@@ -1490,30 +1490,32 @@ var Matcher = (function () {
     var p = present(t), ok = p.filter(function (f) { return status(f).k === 'ok'; }).length;
     return { t: t, all: inTank(t), present: p, ok: ok, kind: ok === 0 ? 2 : (ok < p.length ? 0 : 1) };
   }
-  // Frogs are used in rounds: tank order, then ID order, wrapping from the last tank to Tank 1. A frog resting when its
-  // turn comes waits for the next round; the rest period is the only fixed rule. Where the round stands is read from
-  // the saved priming dates: read round from the right place, they rise from the oldest to the frog used last. The
-  // round continues after the frog where they rise most consistently (fewest pairs out of date order; on a tie, the
-  // most recent frog), so a frog used out of turn does not move it. Frogs never primed take no part in finding the
+  // Frogs are used in rounds of tank order, wrapping from the last tank to Tank 1; within a tank any available frog
+  // will do. A frog resting when its tank's turn comes waits for the next round; the rest period is the only fixed rule.
+  // The tank the round is at is read from the saved priming dates: read round from the right place, they rise from the
+  // oldest to the tank used last. That is the tank after which they rise most consistently (fewest pairs of frogs in
+  // different tanks out of date order; on a tie, the most recent), so a frog used out of turn does not move it. The
+  // round restarts at that tank, so frogs left in it come first. Frogs never primed take no part in finding the
   // place and are used when the round reaches them. Frogs in today's priming are skipped, not counted as used.
   function round() {
+    var tanks = tankNos(), T = tanks.length, best = null, bestInv = Infinity;
     var list = colony().filter(function (f) { return f.tank; }).sort(function (a, b) { return a.tank - b.tank || a.id - b.id; });
-    var dated = [], m, best = null, bestInv = Infinity;
-    list.forEach(function (f, n) { if (f.lastPriming) dated.push({ n: n, d: f.lastPriming }); });
-    m = dated.length;
-    for (var b = 0; b < m; b++) {
-      var inv = 0;
-      for (var j = 1; j < m && inv <= bestInv; j++) for (var k = j + 1; k <= m; k++) if (dated[(b + j) % m].d > dated[(b + k) % m].d) inv++;
-      if (inv < bestInv || (inv === bestInv && dated[b].d > dated[best].d)) { bestInv = inv; best = b; }
-    }
-    var after = best === null ? null : list[dated[best].n];
-    return { list: list, start: best === null ? 0 : (dated[best].n + 1) % list.length, after: after };
+    var dated = list.filter(function (f) { return f.lastPriming; }).map(function (f) { return { t: tanks.indexOf(f.tank), d: f.lastPriming }; });
+    var latest = {};
+    dated.forEach(function (o) { if (!latest[o.t] || o.d > latest[o.t]) latest[o.t] = o.d; });
+    Object.keys(latest).map(Number).forEach(function (t) {
+      var seq = dated.slice().sort(function (a, b) { return (a.t - t - 1 + T) % T - (b.t - t - 1 + T) % T; }), inv = 0;
+      for (var j = 0; j < seq.length && inv <= bestInv; j++) for (var k = j + 1; k < seq.length; k++) if (seq[j].t !== seq[k].t && seq[j].d > seq[k].d) inv++;
+      if (inv < bestInv || (inv === bestInv && latest[t] > latest[best])) { bestInv = inv; best = t; }
+    });
+    var at = best === null ? null : tanks[best];
+    return { list: list, start: at === null ? 0 : list.map(function (f) { return f.tank; }).indexOf(at), at: at };
   }
   // The next primingBatch frogs of the round, less those already in today's priming (at least one).
   function nextFrogs() {
     var r = round(), picks = [], n = Math.max(1, S.data.primingBatch - S.basket.length);
     for (var k = 0; k < r.list.length && picks.length < n; k++) { var f = r.list[(r.start + k) % r.list.length]; if (status(f).k === 'ok') picks.push(f); }
-    return { frogs: picks, after: r.after };
+    return { frogs: picks, at: r.at };
   }
   function refs(t, id) { return (S.tankPhotos[t] && S.tankPhotos[t][id]) || []; }
   function ranked(t) {
@@ -1692,9 +1694,9 @@ var Matcher = (function () {
     if (next.length) {
       var nt = [];
       next.forEach(function (f) { if (nt.indexOf(f.tank) < 0) nt.push(f.tank); });
-      h += '<h2>Next' + (next.length > 1 ? ' ' + next.length : '') + ': ' + next.map(function (f) { return '#' + f.id; }).join(', ') + '</h2><div class="stack">' +
+      h += '<h2>Next ' + next.length + ': ' + nt.map(function (t) { var c = next.filter(function (f) { return f.tank === t; }).length; return c + ' from Tank ' + t; }).join(', ') + '</h2><div class="stack">' +
         nt.map(function (t) { return tankRow(infos.filter(function (i) { return i.t === t; })[0], next); }).join('') + '</div>';
-      h += '<p class="note">Tank order, then ID order' + (nx.after ? ', continuing the round after #' + nx.after.id + ' in Tank ' + nx.after.tank : ', from Tank 1') + '. A frog resting when its turn comes waits for the next round. Any available frog can be used.</p>';
+      h += '<p class="note">Tank order' + (nx.at ? ', continuing the round at Tank ' + nx.at : ', from Tank 1') + '. Within a tank, any available frog will do; the marked ones are only a suggestion. A frog resting when its tank\'s turn comes waits for the next round.</p>';
       infos = infos.filter(function (i) { return nt.indexOf(i.t) < 0; });
       if (infos.length) h += '<h2>Other tanks</h2>';
     } else h += '<p class="note">No frog is available right now.</p><h2>Tanks</h2>';
