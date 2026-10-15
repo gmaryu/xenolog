@@ -500,14 +500,27 @@ var Matcher = (function () {
     var p = present(t), ok = p.filter(function (f) { return status(f).k === 'ok'; }).length;
     return { t: t, all: inTank(t), present: p, ok: ok, kind: ok === 0 ? 2 : (ok < p.length ? 0 : 1) };
   }
-  // The next frog to use: the one that has rested longest (never primed counts as longest). Frogs primed up to
-  // sameCycleDays later count as the same cycle and are taken in tank order, then ID order, so small shifts even out.
+  // The next frog to use: the one that has rested longest. Frogs primed up to sameCycleDays later count as the same
+  // cycle and are taken in tank order, then ID order, so small shifts even out. A frog never primed waits for its
+  // tank's turn: until a tank-mate (or, with none primed, a frog of the tank before) is primed on or after its arrival.
+  // From then on it goes with the tank-mates not yet primed this turn, and after them it counts as rested longest.
+  // Frogs without an arrival date were there from the start and count as rested longest.
   function nextFrog() {
-    var ok = colony().filter(function (f) { return f.tank && status(f).k === 'ok'; });
+    var tanks = tankNos(), primed = function (f) { return inBasket(f.id) ? S.data.today : f.lastPriming; };
+    function since(f) {      // the date it is ranked by; null while its tank's turn has not come
+      if (f.lastPriming || !f.arrival) return f.lastPriming;
+      var mates = inTank(f.tank).filter(function (g) { return g !== f && primed(g); });
+      if (!mates.length) mates = inTank(tanks[(tanks.indexOf(f.tank) + tanks.length - 1) % tanks.length]).filter(primed);
+      if (!mates.some(function (g) { return primed(g) >= f.arrival; })) return null;
+      return mates.reduce(function (m, g) { var d = primed(g); return d < f.arrival && (m === '' || d < m) ? d : m; }, '');
+    }
+    var all = colony().filter(function (f) { return f.tank && status(f).k === 'ok'; }).map(function (f) { return { f: f, d: since(f) }; });
+    var ok = all.filter(function (o) { return o.d !== null; });
+    if (!ok.length) ok = all.map(function (o) { return { f: o.f, d: o.f.lastPriming }; });
     if (!ok.length) return null;
-    var oldest = ok.reduce(function (m, f) { return f.lastPriming < m ? f.lastPriming : m; }, ok[0].lastPriming);
-    var f = ok.filter(function (f) { return oldest === '' ? f.lastPriming === '' : daysBetween(oldest, f.lastPriming) <= S.data.sameCycleDays; })
-      .sort(function (a, b) { return a.tank - b.tank || a.id - b.id; })[0];
+    var oldest = ok.reduce(function (m, o) { return o.d < m ? o.d : m; }, ok[0].d);
+    var f = ok.filter(function (o) { return oldest === '' ? o.d === '' : daysBetween(oldest, o.d) <= S.data.sameCycleDays; })
+      .map(function (o) { return o.f; }).sort(function (a, b) { return a.tank - b.tank || a.id - b.id; })[0];
     return { frog: f, oldest: oldest };
   }
   function refs(t, id) { return (S.tankPhotos[t] && S.tankPhotos[t][id]) || []; }
@@ -686,7 +699,7 @@ var Matcher = (function () {
     if (S.shot) h += '<div class="row static">' + ph(S.shot.thumb, 40, 'new') + '<div class="grow"><div class="ttl">Photo not used yet</div><div class="sub">Taken while Tank ' + S.shot.takenIn + ' was open. Open the tank this frog came from to compare it there.</div></div><button class="link" data-act="dropShot" id="btn-drop-shot">Discard</button></div>';
     if (next) {
       h += '<h2>Next: #' + next.id + ' in Tank ' + next.tank + '</h2><div class="stack">' + tankRow(infos.filter(function (i) { return i.t === next.tank; })[0], next) + '</div>';
-      h += '<p class="note">' + (nx.oldest ? 'Longest rest: last priming ' + nx.oldest + '. Frogs primed up to ' + plural(S.data.sameCycleDays, 'day') + ' after that are taken in tank order, then ID order.' : 'Never primed. Frogs never primed come first, in tank order, then ID order.') + ' Any available frog can be used.</p>';
+      h += '<p class="note">' + (nx.oldest ? 'Longest rest: last priming ' + nx.oldest + '. Frogs primed up to ' + plural(S.data.sameCycleDays, 'day') + ' after that are taken in tank order, then ID order.' : 'Never primed' + (next.arrival ? ', and its tank\'s turn has come' : '') + '. Such frogs come first, in tank order, then ID order.') + ' A new frog waits for its tank\'s turn.' + ' Any available frog can be used.</p>';
       infos = infos.filter(function (i) { return i.t !== next.tank; });
       if (infos.length) h += '<h2>Other tanks</h2>';
     } else h += '<p class="note">No frog is available right now.</p><h2>Tanks</h2>';
