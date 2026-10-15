@@ -214,29 +214,6 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 var DEMO_DAY = 86400000;
 function demoAgo(days) { var d = new Date(Date.now() - days * DEMO_DAY); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
 
-// [Animal ID, tank (0 = removed), arrival, removal reason, cycles oldest to newest, days since the newest priming]
-// Cycles are egg grades (DEMO_GRADES); a frog with none was never primed.
-var DEMO_FROGS = [
-  [1, 1, '2024-11', '', ['great', 'good', 'great'], 220],
-  [2, 1, '2024-11', '', ['good', 'good'], 180],
-  [3, 1, '2024-11', '', ['good', 'fair', 'good'], 160],
-  [4, 0, '2024-11', 'Died', ['good'], 400],
-  [5, 2, '2025-02', '', ['great', 'great'], 200],
-  [6, 2, '2025-02', '', ['good', 'great', 'good'], 40],
-  [7, 2, '2025-02', '', ['fair', 'good'], 150],
-  [8, 3, '2025-02', '', ['good', 'good'], 190],
-  [9, 3, '2025-05', '', ['great'], 170],
-  [10, 3, '2025-05', '', ['good', 'good'], 25],
-  [11, 4, '2025-05', '', ['good', 'great'], 70],
-  [12, 0, '2025-05', 'Euthanized', ['poor', 'poor'], 260],
-  [13, 4, '2025-05', '', ['poor', 'fair', 'poor'], 140],
-  [14, 4, '2025-09', '', ['good'], 200],
-  [15, 5, '2025-09', '', ['great', 'good'], 120],
-  [16, 5, '2025-09', '', ['bad'], 135],
-  [17, 5, '2025-09', '', ['good'], 100],
-  [18, 6, demoAgo(60).slice(0, 7), '', [], 0],
-  [19, 7, demoAgo(21).slice(0, 7), '', [], 0]
-];
 // Squeezed quantity, appearance, Ca; laid quantity, appearance, Ca
 var DEMO_GRADES = {
   great: ['Many', 'Great', 'Looking good', 'Normal', 'Good', 'Looking good'],
@@ -246,9 +223,47 @@ var DEMO_GRADES = {
   bad: ['None', 'None', '', 'Few', 'Bad', 'Turned to white']
 };
 var DEMO_PEOPLE = ['alex', 'sam', 'kim'];
-var DEMO_CYCLE = 130;   // days between earlier primings of the same frog
 
-var ROSTER = DEMO_FROGS.map(function (f) { return [f[0], f[1] > 0, f[1] || '', f[2], 'Example supplier', '']; });
+/* 50 frogs in the colony, used about 4 a week, as a lab does: with a 3-month rest that many are needed.
+   The past is simulated week by week from a fixed seed, so the colony is the same on every visit:
+   [{ id, tank, arrived (days ago), removed: {days, reason} | null, cycles: [{days, grade}] oldest first (grade null: not used), open: 'use' | 'rec' | null }] */
+var DEMO_FROGS = (function () {
+  var rnd = demoRandom(2026), REST = 92, PER_WEEK = 4, frogs = [], id;
+  // [first ID, last ID, arrived days ago]
+  [[1, 18, 640], [19, 36, 420], [37, 47, 230], [48, 50, 110], [51, 53, 10]].forEach(function (b) {
+    for (id = b[0]; id <= b[1]; id++) frogs.push({ id: id, arrived: b[2], removed: null, cycles: [], open: null, last: null });
+  });
+  var gone = { 4: [300, 'Died'], 12: [150, 'Euthanized'], 27: [60, 'Escaped'] };
+  var poor = { 13: 1, 31: 1, 44: 1 }, firstBad = 49;                // replacement candidates
+  frogs.forEach(function (f) {
+    if (gone[f.id]) f.removed = { days: gone[f.id][0], reason: gone[f.id][1] };
+    f.base = poor[f.id] ? 'poor' : (rnd() < 0.25 ? 'great' : rnd() < 0.8 ? 'good' : 'fair');
+  });
+  function grade(f) {
+    if (f.id === firstBad && !f.cycles.length) return 'bad';
+    if (rnd() < 0.05) return null;                                    // primed, but the eggs were not used
+    var r = rnd(), order = ['bad', 'poor', 'fair', 'good', 'great'], k = order.indexOf(f.base);
+    return order[Math.max(0, Math.min(4, k + (r < 0.15 ? -1 : r > 0.85 ? 1 : 0)))];
+  }
+  for (var day = 400; day >= 1; day -= 7) {                           // one priming day a week, the last one yesterday
+    var ready = frogs.filter(function (f) {
+      return f.arrived - 14 >= day && (!f.removed || f.removed.days < day) && (f.last === null || f.last - day >= REST);
+    });
+    ready.sort(function (a, b) { return (b.last === null ? 1e9 : b.last) - (a.last === null ? 1e9 : a.last) || a.id - b.id; });
+    ready.slice(0, PER_WEEK).forEach(function (f, n) {
+      // Yesterday's frogs are still out: two with an egg record, two waiting for one.
+      var g = day === 1 ? (n < 2 ? grade(f) || 'good' : null) : grade(f);
+      f.cycles.push({ days: day, grade: g });
+      if (day === 1) f.open = n < 2 ? 'rec' : 'use';
+      f.last = day;
+    });
+  }
+  // Housing in ID order, 3 to a tank; a removed frog leaves its place empty until the next tank exchange.
+  frogs.forEach(function (f, n) { f.tank = f.removed ? 0 : Math.floor(n / 3) + 1; });
+  return frogs;
+})();
+
+var ROSTER = DEMO_FROGS.map(function (f) { return [f.id, !f.removed, f.tank || '', demoAgo(f.arrived).slice(0, 7), 'Example supplier', '']; });
 
 function demoRandom(seed) {
   var s = seed * 2654435761 >>> 0;
@@ -276,9 +291,12 @@ function demoSkin(id) {
 }
 
 /* A photo of frog id on a pale tray, head up. v shifts, turns, scales and lights it, as two real photos of one frog differ.
-   Returns a 1200 x 900 canvas. */
-function demoPhoto(id, v) {
-  var c = demoCanvas(1200, 900), g = c.getContext('2d'), rnd = demoRandom(v.noise || 1);   // noise: seed of this photo's tray
+   Drawn in 1200 x 900 units; k scales the canvas (registration photos use a smaller one, so 50 of them are quick to make). */
+function demoPhoto(id, v, k) {
+  k = k || 1;
+  var W = Math.round(1200 * k), H = Math.round(900 * k), rnd = demoRandom(v.noise || 1);   // noise: seed of this photo's tray
+  function layer() { var cv = demoCanvas(W, H); cv.getContext('2d').scale(k, k); return cv; }
+  var c = layer(), g = c.getContext('2d');
   var tray = g.createLinearGradient(0, 0, 1200, 900);
   tray.addColorStop(0, '#ecebe6'); tray.addColorStop(1, '#d9d7cf');
   g.fillStyle = tray; g.fillRect(0, 0, 1200, 900);
@@ -307,14 +325,17 @@ function demoPhoto(id, v) {
   }
   // A crisp, perfectly smooth outline would line up between any two frogs, which real skin edges do not.
   // So the frog is drawn soft, and its skin fades in to sharp away from the edge.
-  function blurred(src) { var o = demoCanvas(1200, 900), sm = demoCanvas(150, 113); sm.getContext('2d').drawImage(src, 0, 0, 150, 113); o.getContext('2d').drawImage(sm, 0, 0, 1200, 900); return o; }
-  var whole = demoCanvas(1200, 900), skin = demoCanvas(1200, 900), mask = demoCanvas(1200, 900);
+  function blurred(src) { var o = demoCanvas(W, H), sm = demoCanvas(150, 113); sm.getContext('2d').drawImage(src, 0, 0, 150, 113); o.getContext('2d').drawImage(sm, 0, 0, W, H); return o; }
+  var whole = layer(), skin = layer(), mask = layer();
   frog(whole.getContext('2d'), 0); frog(skin.getContext('2d'), 0, true); frog(mask.getContext('2d'), 30);
   var sk = skin.getContext('2d');
-  sk.globalCompositeOperation = 'destination-in'; sk.drawImage(blurred(mask), 0, 0);
-  g.drawImage(blurred(whole), 0, 0); g.drawImage(skin, 0, 0);
+  sk.globalCompositeOperation = 'destination-in'; sk.drawImage(blurred(mask), 0, 0, 1200, 900);
+  g.drawImage(blurred(whole), 0, 0, 1200, 900); g.drawImage(skin, 0, 0, 1200, 900);
   g.fillStyle = v.light > 0 ? 'rgba(255,255,240,' + v.light + ')' : 'rgba(0,0,0,' + (-(v.light || 0)) + ')';
   g.fillRect(0, 0, 1200, 900);
+  // Square around head and body, where the crop goes, in canvas pixels (for an unturned photo).
+  var top = Math.min(hc - hy, 40 - ry), bottom = 40 + ry, s = (v.scale || 1) * k, side = Math.max(2 * rx, bottom - top) * 1.04 * s;
+  c.square = { x: (600 + (v.dx || 0)) * k - side / 2, y: (470 + (v.dy || 0)) * k + (top + bottom) / 2 * s - side / 2, side: side };
   return c;
 }
 // A different photo of the same frog every time: what a new picture at the tank would look like.
@@ -323,11 +344,10 @@ function demoVariant() {
   return { angle: (r() - 0.5) * 0.5, scale: 0.85 + r() * 0.3, dx: (r() - 0.5) * 160, dy: (r() - 0.5) * 80, light: (r() - 0.5) * 0.24, noise: 1 + Math.floor(r() * 1e6) };
 }
 
-// The registration photo, cropped where the app's automatic crop puts the square (checked, as if someone confirmed it).
+// The registration photo, cropped to the back as someone would in the crop screen. The square comes from the drawing:
+// the app's automatic crop would find nearly the same one, but takes about 60 ms a photo.
 function demoRegistration(id) {
-  var c = demoPhoto(id, { noise: id }), box = Matcher.findBack(c) || { x: 300, y: 150, w: 600, h: 600 };
-  var side = Math.min(Math.max(box.w, box.h) * 1.04, c.width, c.height);
-  var x = Math.min(Math.max(0, box.x + box.w / 2 - side / 2), c.width - side), y = Math.min(Math.max(0, box.y + box.h / 2 - side / 2), c.height - side);
+  var c = demoPhoto(id, { noise: id }, 0.5), x = c.square.x, y = c.square.y, side = c.square.side;
   function cut(n, q) { var o = demoCanvas(n, n); o.getContext('2d').drawImage(c, x, y, side, side, 0, 0, n, n); return o.toDataURL('image/jpeg', q); }
   return { full: c.toDataURL('image/jpeg', 0.82), pattern: cut(256, 0.8), thumb: cut(128, 0.7), emb: '', crop: 'confirmed' };
 }
@@ -342,22 +362,19 @@ function demoSeed() {
     if (g) { r[3] = demoAgo(days - 1); r[5] = k % 3 ? 'MilliQ' : 'RO'; for (var i = 0; i < 6; i++) r[6 + i] = g[i]; r[19] = String(1 + (frog + k) % 5); }
     recSheet.appendRow(r);
   }
-  DEMO_FROGS.forEach(function (f, n) {
-    var id = f[0], cycles = f[4];
-    cycles.forEach(function (grade, i) {
-      record(id, f[5] + (cycles.length - 1 - i) * DEMO_CYCLE, grade, 'Returned', DEMO_PEOPLE[(n + i) % DEMO_PEOPLE.length]);
+  DEMO_FROGS.forEach(function (f) {
+    f.cycles.forEach(function (c, i) {
+      var open = f.open && i === f.cycles.length - 1;
+      record(f.id, c.days, c.grade, open ? (f.open === 'rec' ? 'Recorded' : 'In use') : (c.grade ? 'Returned' : 'Not used'), DEMO_PEOPLE[(c.days / 7 | 0) % DEMO_PEOPLE.length]);
     });
-    if (!f[1]) {
-      var row = readFrogs_().filter(function (x) { return x.id === id; })[0].row;
-      frogSheet.getRange(row, 7, 1, 4).setValues([[demoAgo(f[5] - 30), stamp, 'demo', f[3]]]);
+    if (f.removed) {
+      var row = readFrogs_().filter(function (x) { return x.id === f.id; })[0].row;
+      frogSheet.getRange(row, 7, 1, 4).setValues([[demoAgo(f.removed.days), stamp, 'demo', f.removed.reason]]);
       return;
     }
-    savePhoto_(id, demoRegistration(id), 'registration', 'demo');
-    photoSheet.getRange(photoSheet.getLastRow(), 3).setValue(f[2].length === 7 ? f[2] + '-15' : f[2]);
+    savePhoto_(f.id, demoRegistration(f.id), 'registration', 'demo');
+    photoSheet.getRange(photoSheet.getLastRow(), 3).setValue(demoAgo(f.arrived));
   });
-  // Two frogs out of their tank today: one waiting for its egg record, one recorded and waiting to go back.
-  record(8, 1, null, 'In use', 'sam');
-  record(9, 1, 'great', 'Recorded', 'alex');
   rebuildVet_();
 }
 
