@@ -105,6 +105,8 @@ Once most frogs have a photo, the [roster check](https://gmaryu.github.io/xenolo
 - **Photos of different IDs that match.** The same frog filed under two IDs; within one tank, often two frogs swapped when they were photographed.
 - **Close to the threshold**, frogs in the colony with no photo, and frogs with only one photo, which have nothing of their own to be checked against.
 
+Below the lists, a grid shows every pair at once: each photo is a row and a column, in tank order, and each cell is shaded by its score. One ID's photos with each other form outlined squares on the diagonal that should be strongly coloured, with faint or empty cells everywhere else, so a strong cell away from the diagonal or a faint one inside a square stands out. Clicking a cell shows the two photos.
+
 Export the **Photos** sheet (and, optionally, the **Frogs** sheet) with File > Download > Comma-separated values and choose the files on the page; the backs are compared as they were cropped in the app. Image files named by frog ID work too, with automatic cropping. The files are read in the browser and not sent anywhere. The page also opens from `docs/check/index.html` in a copy of this repository.
 
 It changes nothing. Fix what it finds in the app (**Remove** under a photo, or **Adjust crop**) and run it again. It finds photos that disagree, not a mix-up repeated in every photo of a frog: a frog photographed only under the wrong ID looks correct. Comparing takes about 50 ms a pair on a recent laptop, so 140 photos (about 10,000 pairs) take around 8 minutes. On the 65 registration photos of the original lab, all 2,080 pairs of different frogs gave 5 points or fewer.
