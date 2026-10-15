@@ -88,7 +88,7 @@ assert.deepEqual(SETTINGS, DEFAULTS);   // the example Settings.gs lists every s
 }
 { // no Settings.gs at all (a deployment that only replaced Code.gs): the defaults
   const run = withSettings(null);
-  assert.equal(run('getState().tankSize'), 3); assert.equal(run('getState().sameCycleDays'), 14); assert.equal(run('getState().primingBatch'), 4); assert.deepEqual(run('getState().options'), DEFAULTS.options);
+  assert.equal(run('getState().tankSize'), 3); assert.equal(run('getState().primingBatch'), 4); assert.deepEqual(run('getState().options'), DEFAULTS.options);
 }
 { // renamed choices with their own values: the score uses the highest value given, not a fixed 4 and 3
   const run = withSettings({ quality: { appearance: { 'Top': 10, 'Low': 5, 'None': 0 }, quantity: { 'Lots': 2, 'Some': 1, 'None': 0 } } });

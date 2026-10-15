@@ -17,7 +17,6 @@ const DEFAULTS = {
   restMonths: 3,                 // months a frog rests after a priming
   tankSize: 3,                   // frogs per housing tank
   primingBatch: 4,               // frogs usually primed together; the Priming tab suggests this many
-  sameCycleDays: 14,             // next frog: those primed up to this many days after the longest-rested one are used in tank order, then ID order
   removalReasons: ['Died', 'Escaped', 'Euthanized', 'Other'],   // offered when a frog is removed from the colony
   recordTiming: true,            // false stops the Timing sheet: how long each step of a priming took, per person (see README)
   // Choices offered in the record form, least to most favourable.
@@ -222,7 +221,7 @@ function buildState_(withThumbs) {
     return o;
   });
   const Q = setting_('quality');
-  return { user: user_(), today: today, recordTiming: setting_('recordTiming'), restMonths: setting_('restMonths'), tankSize: setting_('tankSize'), sameCycleDays: setting_('sameCycleDays'), primingBatch: setting_('primingBatch'), appName: setting_('appName'),
+  return { user: user_(), today: today, recordTiming: setting_('recordTiming'), restMonths: setting_('restMonths'), tankSize: setting_('tankSize'), primingBatch: setting_('primingBatch'), appName: setting_('appName'),
     options: setting_('options'), removalReasons: setting_('removalReasons'), frogs: frogs,
     qualityRule: { squeezed: Math.round(Q.squeezedWeight * 100), cycles: Q.cycles, threshold: Q.threshold, firstThreshold: Q.firstThreshold } };
 }

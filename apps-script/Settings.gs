@@ -7,7 +7,6 @@ const SETTINGS = {
   restMonths: 3,                 // months a frog rests after a priming
   tankSize: 3,                   // frogs per housing tank
   primingBatch: 4,               // frogs usually primed together; the Priming tab suggests this many
-  sameCycleDays: 14,             // next frog: those primed up to this many days after the longest-rested one are used in tank order, then ID order
   removalReasons: ['Died', 'Escaped', 'Euthanized', 'Other'],   // offered when a frog is removed from the colony
   recordTiming: true,            // false stops the Timing sheet: how long each step of a priming took, per person (see README)
 
