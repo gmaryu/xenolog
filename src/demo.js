@@ -122,9 +122,9 @@ function demoPhoto(id, v, k) {
   g.drawImage(blurred(whole), 0, 0, 1200, 900); g.drawImage(skin, 0, 0, 1200, 900);
   g.fillStyle = v.light > 0 ? 'rgba(255,255,240,' + v.light + ')' : 'rgba(0,0,0,' + (-(v.light || 0)) + ')';
   g.fillRect(0, 0, 1200, 900);
-  // Square around head and body, where the crop goes, in canvas pixels (for an unturned photo).
-  var top = Math.min(hc - hy, 40 - ry), bottom = 40 + ry, s = (v.scale || 1) * k, side = Math.max(2 * rx, bottom - top) * 1.04 * s;
-  c.square = { x: (600 + (v.dx || 0)) * k - side / 2, y: (470 + (v.dy || 0)) * k + (top + bottom) / 2 * s - side / 2, side: side };
+  // Square around head and body, where the crop goes, in canvas pixels; its centre turns with the frog.
+  var top = Math.min(hc - hy, 40 - ry), bottom = 40 + ry, s = (v.scale || 1) * k, side = Math.max(2 * rx, bottom - top) * 1.04 * s, mid = (top + bottom) / 2 * s, a = v.angle || 0;
+  c.square = { x: (600 + (v.dx || 0)) * k - Math.sin(a) * mid - side / 2, y: (470 + (v.dy || 0)) * k + Math.cos(a) * mid - side / 2, side: side };
   return c;
 }
 // A different photo of the same frog every time: what a new picture at the tank would look like.
@@ -133,12 +133,19 @@ function demoVariant() {
   return { angle: (r() - 0.5) * 0.5, scale: 0.85 + r() * 0.3, dx: (r() - 0.5) * 160, dy: (r() - 0.5) * 80, light: (r() - 0.5) * 0.24, noise: 1 + Math.floor(r() * 1e6) };
 }
 
-// The registration photo, cropped to the back as someone would in the crop screen. The square comes from the drawing:
+// A stored photo, cropped to the back as someone would in the crop screen. The square comes from the drawing:
 // the app's automatic crop would find nearly the same one, but takes about 60 ms a photo.
-function demoRegistration(id) {
-  var c = demoPhoto(id, { noise: id }, 0.5), x = c.square.x, y = c.square.y, side = c.square.side;
+function demoStored(id, v) {
+  var c = demoPhoto(id, v, 0.5), x = c.square.x, y = c.square.y, side = c.square.side;
   function cut(n, q) { var o = demoCanvas(n, n); o.getContext('2d').drawImage(c, x, y, side, side, 0, 0, n, n); return o.toDataURL('image/jpeg', q); }
   return { full: c.toDataURL('image/jpeg', 0.82), pattern: cut(256, 0.8), thumb: cut(128, 0.7), emb: '', crop: 'confirmed' };
+}
+function demoRegistration(id) { return demoStored(id, { noise: id }); }
+// A second photo of each frog, from a fixed seed so it is the same on every visit: turned, moved and lit differently
+// from the registration photo, as a photo taken months later would be. It gives the roster check pairs of one frog to find.
+function demoSecond(id) {
+  var r = demoRandom(id * 13 + 5);
+  return demoStored(id, { angle: (r() - 0.5) * 0.4, scale: 0.9 + r() * 0.2, dx: (r() - 0.5) * 120, dy: (r() - 0.5) * 60, light: (r() - 0.5) * 0.2, noise: 1000 + id });
 }
 
 /* Runs before the page's first call to the server (window.beforeServer in the bridge), when matcher.js has loaded. */
@@ -163,6 +170,9 @@ function demoSeed() {
     }
     savePhoto_(f.id, demoRegistration(f.id), 'registration', 'demo');
     photoSheet.getRange(photoSheet.getLastRow(), 3).setValue(demoAgo(f.arrived));
+    // the second photo: taken at the frog's last priming, or a few days after arrival for a frog not primed yet
+    savePhoto_(f.id, demoSecond(f.id), f.last === null ? 'added' : 'priming', 'demo');
+    photoSheet.getRange(photoSheet.getLastRow(), 3).setValue(demoAgo(f.last === null ? f.arrived - 3 : f.last));
   });
   rebuildVet_();
 }
