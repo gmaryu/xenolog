@@ -140,6 +140,11 @@ assert.throws(() => removeFrog(17), /Choose why/); assert.throws(() => removeFro
 st = removeFrog(17, 'Escaped', 'found the lid open'); assert.equal(F(17).inColony, false); assert.equal(F(17).removalReason, 'Escaped'); assert.equal(F(17).removedOn, '2026-10-13'); assert.equal(F(17).notes, 'found the lid open');
 assert.deepEqual(st.removalReasons, ['Died', 'Escaped', 'Euthanized', 'Other']); assert.equal(FAKE.book.sheets['Frogs'].data[0][9], 'Removal reason');
 FAKE.book.sheets['Frogs'].data[0].pop(); setup(); assert.equal(FAKE.book.sheets['Frogs'].data[0][9], 'Removal reason');   // heading is restored on an older sheet
-st = applyExchange(); assert.equal(F(20).tank, 2); assert.equal(F(21).tank, 2); assert.equal(F(22).tank, 2); assert.equal(F(23).tank, 3); assert.equal(F(138).tank, 6);
+const before = {}; st.frogs.forEach(f => { before[f.id] = f.tank; });
+st = applyExchange(2); assert.equal(F(20).tank, 2); assert.equal(F(21).tank, 2); assert.equal(F(22).tank, 2);
+assert.deepEqual(st.frogs.filter(f => f.tank !== before[f.id]).map(f => f.id).every(id => F(id).tank === 2), true);   // only frogs going to Tank 2 moved
+assert.throws(() => applyExchange(2), /No frog is waiting/); assert.throws(() => applyExchange(99), /No frog is waiting/);
+for (let t = 1; t <= 6; t++) { try { applyExchange(t); } catch (e) { assert.match(e.message, /No frog is waiting/); } }
+assert.equal(F(23).tank, 3); assert.equal(F(138).tank, 6);
 assert.equal(st.frogs.filter(f => f.inColony).length, 17);
 console.log('ALL SERVER TESTS PASSED');

@@ -13,7 +13,7 @@ It runs as a Google Apps Script web app bound to a spreadsheet. There is no serv
 - **Egg record.** Quantity, appearance and Ca-activation result for squeezed and laid eggs, how active the frog was during collection (1 calm to 5 struggled hard), plus comments. The Ca-activation result and comments stay editable afterwards.
 - **Return.** The app shows which housing tank the frog goes back to.
 - **Photos.** Each photo is cropped to the back in a crop screen and stored in Google Drive. Earlier photos of each frog can be compared side by side with the new one.
-- **Colony upkeep.** Add and remove frogs, redo the tank layout in ID order, and see replacement candidates based on recent egg quality.
+- **Colony upkeep.** Add and remove frogs, redo the tank layout in ID order one tank at a time (the list shows where each frog is now and where it goes), and see replacement candidates based on recent egg quality.
 
 ## Status and limits
 

@@ -435,13 +435,25 @@
       '<button class="btn" type="submit" id="btn-add-save">Add frog</button></form>';
   }
 
+  // The layout is worked out in ID order every time; a tank is marked done on the day its frogs are moved in.
   function vExchange() {
-    var act = colony().sort(function (a, b) { return a.id - b.id; }), moved = 0;
-    var rows = act.map(function (f, i) { var nt = Math.floor(i / S.data.tankSize) + 1; if (nt !== f.tank) moved++; return '<tr><td class="id">#' + f.id + '</td><td>Tank ' + f.tank + '</td><td' + (nt !== f.tank ? ' class="chg"' : '') + '>Tank ' + nt + '</td></tr>'; }).join('');
-    return head('Tank exchange', true) + '<p class="note">The ' + act.length + ' frogs in the colony, assigned ' + S.data.tankSize + ' per tank in ID order. ' + moved + ' would move.</p>' +
-      (inUse().length ? '<div class="alert use">Some frogs are in use. Confirming also changes the tank they return to.</div>' : '') +
-      '<div class="scroll"><table><thead><tr><th>ID</th><th>Now</th><th>After</th></tr></thead><tbody>' + rows + '</tbody></table></div>' +
-      '<button class="btn" data-act="applyExchange" id="btn-apply-exchange"' + (moved ? '' : ' disabled') + '>Confirm this layout</button>';
+    var act = colony().sort(function (a, b) { return a.id - b.id; }), todo = {};
+    var rows = act.map(function (f, i) {
+      var nt = Math.floor(i / S.data.tankSize) + 1;
+      if (nt !== f.tank) (todo[nt] = todo[nt] || []).push(f);
+      return '<tr><td class="id">#' + f.id + '</td><td>Tank ' + f.tank + '</td><td' + (nt !== f.tank ? ' class="chg"' : '') + '>Tank ' + nt + '</td></tr>';
+    }).join('');
+    var tanks = Object.keys(todo).map(Number).sort(function (a, b) { return a - b; });
+    var moved = tanks.reduce(function (n, t) { return n + todo[t].length; }, 0);
+    var h = head('Tank exchange', true) + '<p class="note">The ' + act.length + ' frogs in the colony, assigned ' + S.data.tankSize + ' per tank in ID order. ' +
+      (moved ? moved + ' still to move, into ' + tanks.length + (tanks.length > 1 ? ' tanks' : ' tank') + '. When a tank has been filled, mark it done; until then its frogs stay listed in the tank they are in now.' : 'Every frog is in its tank.') + '</p>' +
+      (inUse().length ? '<div class="alert use">Some frogs are in use. Marking a tank done also changes the tank they return to.</div>' : '');
+    if (tanks.length) h += '<div class="stack">' + tanks.map(function (t) {
+      var list = todo[t].map(function (f) { return '#' + f.id + ' from Tank ' + f.tank; }).join(', ');
+      if (S.confirm === 'ex' + t) return '<div class="alert use">Tank ' + t + ' done? ' + list + ' will be listed in Tank ' + t + '.</div><div class="btnrow"><button class="btn" data-act="applyExchange" data-id="' + t + '" id="btn-ex-yes">Yes, Tank ' + t + ' is done</button><button class="btn ghost" data-act="cancel" id="btn-ex-no">Not yet</button></div>';
+      return '<div class="row static"><div class="grow"><div class="ttl">Tank ' + t + '</div><div class="sub">' + list + '</div></div><button class="btn ghost" data-act="askExchange" data-id="' + t + '" id="btn-ex-' + t + '">Done</button></div>';
+    }).join('') + '</div>';
+    return h + '<div class="scroll"><table><thead><tr><th>ID</th><th>Now</th><th>After</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
   }
 
   /* ---------- render and navigation ---------- */
@@ -609,7 +621,8 @@
     else if (act === 'go') { S.addPhoto = null; go({ name: id }); }
     else if (act === 'askRemove') { S.confirm = +id; render(); }
     else if (act === 'cancel') { S.confirm = null; render(); }
-    else if (act === 'applyExchange') call('applyExchange', []).then(function (st) { applyState(st); S.tankPhotos = {}; go({ name: 'frogs' }); toast('New tank layout confirmed'); }).catch(fail);
+    else if (act === 'askExchange') { S.confirm = 'ex' + id; render(); }
+    else if (act === 'applyExchange') call('applyExchange', [+id]).then(function (st) { applyState(st); S.tankPhotos = {}; S.confirm = null; render(); toast('Tank ' + id + ' done'); }).catch(fail);
   });
 
   document.addEventListener('change', function (e) {

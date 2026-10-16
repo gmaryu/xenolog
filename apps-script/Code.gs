@@ -50,7 +50,7 @@ function setting_(key) {
 const PHOTOS_PER_FROG = 5;      // newest photos sent to the page for comparison
 const CELL_LIMIT = 49000;       // Sheets refuses cells over 50,000 characters
 
-const APP_VERSION = '1.2.0';   // written into the Timing sheet, so collected data can be tied to a release
+const APP_VERSION = '1.3.0';   // written into the Timing sheet, so collected data can be tied to a release
 const SHEETS = { FROGS: 'Frogs', RECORDS: 'Records', PHOTOS: 'Photos', MATCH: 'Match log', TIMING: 'Timing', VET: 'Vet view', CHECK: 'Import check' };
 const LEGACY = { FORM: 'Form Responses 1', SHARED: 'Shared with ULAM' };
 
@@ -485,14 +485,16 @@ function removeFrog(frogId, reason, note) {
   });
 }
 
-/** Tank exchange: frogs in the colony, in ID order, tankSize (setting) per tank starting at Tank 1. */
-function applyExchange() {
+/** Tank exchange, one tank at a time. The layout is the frogs in the colony in ID order, tankSize (setting) per tank
+ *  starting at Tank 1, worked out afresh on every call. tank: the tank just filled; its frogs from that layout are recorded in it. */
+function applyExchange(tank) {
   return withLock_(function () {
+    tank = Number(tank);
     const sh = sheet_(SHEETS.FROGS), stamp = now_(), user = user_();
-    readFrogs_().filter(function (f) { return f.inColony; }).sort(function (a, b) { return a.id - b.id; }).forEach(function (f, i) {
-      const tank = Math.floor(i / setting_('tankSize')) + 1;
-      if (tank !== f.tank) { sh.getRange(f.row, 3).setValue(tank); sh.getRange(f.row, 8, 1, 2).setValues([[stamp, user]]); }
-    });
+    const moving = readFrogs_().filter(function (f) { return f.inColony; }).sort(function (a, b) { return a.id - b.id; })
+      .filter(function (f, i) { return Math.floor(i / setting_('tankSize')) + 1 === tank && f.tank !== tank; });
+    if (!moving.length) throw new Error('No frog is waiting to move into Tank ' + tank + '.');
+    moving.forEach(function (f) { sh.getRange(f.row, 3).setValue(tank); sh.getRange(f.row, 8, 1, 2).setValues([[stamp, user]]); });
     rebuildVet_();
     return buildState_(false);
   });
