@@ -52,6 +52,10 @@ var DEMO_FROGS = (function () {
   return frogs;
 })();
 
+// One mix-up for the roster check to find: the photo saved at #23's last priming shows its tank-mate #22.
+// Both are in Tank 8, away from the tanks the demo's Next suggests, so trying a priming does not run into it.
+var DEMO_SWAP = { filedUnder: 23, shows: 22 };
+
 var ROSTER = DEMO_FROGS.map(function (f) { return [f.id, !f.removed, f.tank || '', demoAgo(f.arrived).slice(0, 7), 'Example supplier', '']; });
 
 function demoRandom(seed) {
@@ -143,9 +147,10 @@ function demoStored(id, v) {
 function demoRegistration(id) { return demoStored(id, { noise: id }); }
 // A second photo of each frog, from a fixed seed so it is the same on every visit: turned, moved and lit differently
 // from the registration photo, as a photo taken months later would be. It gives the roster check pairs of one frog to find.
-function demoSecond(id) {
+// shows: the frog actually in the photo, when it is not the one it is filed under (DEMO_SWAP).
+function demoSecond(id, shows) {
   var r = demoRandom(id * 13 + 5);
-  return demoStored(id, { angle: (r() - 0.5) * 0.4, scale: 0.9 + r() * 0.2, dx: (r() - 0.5) * 120, dy: (r() - 0.5) * 60, light: (r() - 0.5) * 0.2, noise: 1000 + id });
+  return demoStored(shows || id, { angle: (r() - 0.5) * 0.4, scale: 0.9 + r() * 0.2, dx: (r() - 0.5) * 120, dy: (r() - 0.5) * 60, light: (r() - 0.5) * 0.2, noise: 1000 + id });
 }
 
 /* Runs before the page's first call to the server (window.beforeServer in the bridge), when matcher.js has loaded. */
@@ -171,7 +176,7 @@ function demoSeed() {
     savePhoto_(f.id, demoRegistration(f.id), 'registration', 'demo');
     photoSheet.getRange(photoSheet.getLastRow(), 3).setValue(demoAgo(f.arrived));
     // the second photo: taken at the frog's last priming, or a few days after arrival for a frog not primed yet
-    savePhoto_(f.id, demoSecond(f.id), f.last === null ? 'added' : 'priming', 'demo');
+    savePhoto_(f.id, demoSecond(f.id, f.id === DEMO_SWAP.filedUnder ? DEMO_SWAP.shows : f.id), f.last === null ? 'added' : 'priming', 'demo');
     photoSheet.getRange(photoSheet.getLastRow(), 3).setValue(demoAgo(f.last === null ? f.arrived - 3 : f.last));
   });
   rebuildVet_();
