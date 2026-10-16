@@ -16,7 +16,9 @@ FAKE.addSheet('Form Responses 1', [FH,
   ['t','','x','1/1/2025','','','','','','','','',''],
   ['t','119','GH','7/15/2026','RO','Few','Bad','Good','None','None','','',''],
   ['','','','','','','','','','','','','']]);
-FAKE.addSheet('Shared with ULAM', [VET_COLS,
+FAKE.addSheet('Shared with ULAM', [['Animal ID', 'System #', 'Arrival Date', 'Source', 'Collection Date', '# Collected (Laid)', 'Appearance (Laid)',
+  'After Ca2+ (Laid)', '# Collected (Squeezed)', 'Appearance (Squeezed)', 'After Ca2+ (Squeezed)', 'MMR H2O source', 'Notes',
+  'Fertilized', '% viable pre-injection', '% viable post-injection'],
   ['15','','','','10/9/2026','Normal','Good','','Many','Great','','MilliQ','','','',''],
   ['76','','','','9/8/2023','good','bad','','few','ok','','Milli-Q','','','',''],
   ['88','','','','9/13/2023','none','-','','few','bad','','Milli-Q','-','','',''],
@@ -86,6 +88,21 @@ assert.deepEqual(SETTINGS, DEFAULTS);   // the example Settings.gs lists every s
   const rid = run('getState().frogs.find(f => f.id === 10).open.id');
   run(`saveRecord('${rid}', { collection: '2026-10-14', water: 'Tap', sqQty: 'Many' })`); assert.equal(run('getState().frogs.find(f => f.id === 10).open.water'), 'Tap');
 }
+{ // Vet view: housing systems and lab-chosen columns; changing the columns rewrites the headings on the next rebuild
+  const run = withSettings({ systems: [{ name: 'A', tanks: [1, 3] }, { name: 'B', tanks: [4, 6] }],
+    vetColumns: [['ID', 'frog'], ['System', 'system'], ['Tank', 'tank'], ['Score', 'score'], ['Vet notes', '']] });
+  run("savePriming({ items: [{ id: 10 }] });");
+  run(`saveRecord(getState().frogs.find(f => f.id === 10).open.id, { collection: '2026-10-14', sqQty: 'Many', sqApp: 'Great' })`);
+  const vet = run("FAKE.book.sheets['Vet view'].data");
+  assert.deepEqual(vet[0], ['ID', 'System', 'Tank', 'Score', 'Vet notes']);
+  const tank10 = run('getState().frogs.find(f => f.id === 10).tank');
+  assert.deepEqual(vet[1].slice(0, 3), [10, tank10 <= 3 ? 'A' : 'B', tank10]); assert.equal(typeof vet[1][3], 'number');
+  assert.equal(run("system_(7)"), 7);   // a tank no system lists shows its number
+  run("SETTINGS.vetColumns = [['Animal', 'frog']]; rebuildVetView();");
+  assert.deepEqual(run("FAKE.book.sheets['Vet view'].data").map(r => r.filter(x => x !== '').length), [1, 1]);
+  run("SETTINGS.vetColumns = [['Animal', 'frogg']];"); assert.throws(() => run('rebuildVetView()'), /vetColumns in Settings.*Fields: frog, system/);
+  run("SETTINGS.systems = [{ name: 'A' }];"); assert.throws(() => run('system_(1)'), /systems in Settings/);
+}
 { // no Settings.gs at all (a deployment that only replaced Code.gs): the defaults
   const run = withSettings(null);
   assert.equal(run('getState().tankSize'), 3); assert.equal(run('getState().primingBatch'), 4); assert.deepEqual(run('getState().options'), DEFAULTS.options);
@@ -111,6 +128,7 @@ st = updateRecord(rid, { sqCa: 'Looking good', laidCa: '', comments: 'after retu
 let det = getFrogDetail(10); assert.equal(det.records[0].comments, 'after return'); assert.equal(det.records[0].state, 'Returned'); assert.equal(det.records.length, 2); assert.equal(det.photos.length, 1);
 st = returnFrog(F(11).open.id); det = getFrogDetail(11); assert.equal(det.records[0].state, 'Not used'); assert.equal(F(11).restUntil, '2027-01-13');
 const ul = FAKE.book.sheets['Vet view'].data; assert.ok(ul.some(r => r[0] === 10 && r[4] === '2026-10-15' && r[1] === 1 && r[12] === 'after return'));
+assert.equal(ul[0].length, 13); assert.equal(ul[0][1], 'System #'); assert.ok(ul.every(r => r.length <= 13));   // no unused columns
 // remove a photo that shows the wrong frog
 const p10 = getFrogDetail(10).photos.length; addPhoto(10, photo); let d10 = getFrogDetail(10); assert.equal(d10.photos.length, p10 + 1);
 const wrong = d10.photos[d10.photos.length - 1].photoId; d10 = removePhoto(10, wrong); assert.equal(d10.photos.length, p10);

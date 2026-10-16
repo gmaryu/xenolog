@@ -29,6 +29,18 @@ const SETTINGS = {
     quantity: { 'Many': 3, 'Normal': 2, 'Few': 1, 'None': 0 }
   },
 
+  // Housing systems, each a run of tanks, shown in the Vet view's "system" field: e.g. [{ name: 'A', tanks: [1, 12] }, { name: 'B', tanks: [13, 24] }].
+  // Leave empty to show the tank number there instead.
+  systems: [],
+
+  // Vet view columns, left to right: [heading, field]. Rename, reorder, drop or add columns here; the sheet follows on the next rebuild.
+  // Fields: frog, system, tank, arrival, source, frogNotes (from Frogs); priming, collection, name, water, laidQty, laidApp, laidCa,
+  // sqQty, sqApp, sqCa, activity, score, comments (from the record). '' gives an empty column; anything typed into it is cleared on rebuild.
+  vetColumns: [['Animal ID', 'frog'], ['System #', 'system'], ['Arrival Date', 'arrival'], ['Source', 'source'], ['Collection Date', 'collection'],
+    ['# Collected (Laid)', 'laidQty'], ['Appearance (Laid)', 'laidApp'], ['After Ca2+ (Laid)', 'laidCa'],
+    ['# Collected (Squeezed)', 'sqQty'], ['Appearance (Squeezed)', 'sqApp'], ['After Ca2+ (Squeezed)', 'sqCa'],
+    ['MMR H2O source', 'water'], ['Notes', 'comments']],
+
   // Only for "Import legacy records": old water-source spellings in your form, lower case, and the choice each is read as.
   legacyWater: { 'milliq': 'MilliQ', 'milli-q': 'MilliQ', 'ro': 'RO', '-': '' }
 };

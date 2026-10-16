@@ -55,7 +55,7 @@ To update the code later, replace `Code.gs` and `Index.html` only; your `Setting
 | Photos | One row per photo, with a thumbnail and the cropped back (the "Embedding" column is no longer used) |
 | Match log | What the automatic ranking suggested and what the person chose |
 | Timing | One row per frog in a saved priming: seconds from opening the tank to each step, retakes, crop corrections, resting frogs tried, matching time, photo size, device and app version. Kept for measuring the app in use |
-| Vet view | A flat export of the collected records for the veterinary staff, rebuilt after each change |
+| Vet view | A flat export of the collected records for the veterinary staff, rebuilt after each change. Its columns come from `vetColumns` in `Settings.gs` |
 | Import check | Problems found by the optional legacy import |
 
 You can edit Frogs and Records by hand. Keep the header row and column order, and leave `Record ID` and `State` alone.
@@ -72,6 +72,8 @@ You can edit Frogs and Records by hand. Keep the header row and column order, an
 - `recordTiming` – on by default; see below
 - `options` – the choices in the record form. You can rename or add choices; the questions themselves are fixed
 - `quality` – weights and thresholds for the egg-quality score, and the value of each appearance and quantity choice. If you rename a choice in `options`, give it a value here too
+- `systems` – optional: housing systems as runs of tanks, e.g. `[{ name: 'A', tanks: [1, 12] }, { name: 'B', tanks: [13, 24] }]`. The Vet view's `system` field shows the system's name, or the tank number when no system lists the tank
+- `vetColumns` – the Vet view's columns, left to right, as `[heading, field]`. Rename, reorder, drop or add columns; `Settings.gs` lists the fields. A column with field `''` stays empty, and anything typed into the Vet view is cleared at the next rebuild. A changed list shows after the next record change or **Rebuild Vet view**
 - `legacyWater` – only for the legacy import: old water-source spellings and the choice each is read as
 
 `options`, `quality` and `legacyWater` are merged with the defaults key by key: `options: { water: ['Tap', 'RO'] }` changes only the water choices.

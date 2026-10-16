@@ -443,6 +443,18 @@ const SETTINGS = {
     quantity: { 'Many': 3, 'Normal': 2, 'Few': 1, 'None': 0 }
   },
 
+  // Housing systems, each a run of tanks, shown in the Vet view's "system" field: e.g. [{ name: 'A', tanks: [1, 12] }, { name: 'B', tanks: [13, 24] }].
+  // Leave empty to show the tank number there instead.
+  systems: [],
+
+  // Vet view columns, left to right: [heading, field]. Rename, reorder, drop or add columns here; the sheet follows on the next rebuild.
+  // Fields: frog, system, tank, arrival, source, frogNotes (from Frogs); priming, collection, name, water, laidQty, laidApp, laidCa,
+  // sqQty, sqApp, sqCa, activity, score, comments (from the record). '' gives an empty column; anything typed into it is cleared on rebuild.
+  vetColumns: [['Animal ID', 'frog'], ['System #', 'system'], ['Arrival Date', 'arrival'], ['Source', 'source'], ['Collection Date', 'collection'],
+    ['# Collected (Laid)', 'laidQty'], ['Appearance (Laid)', 'laidApp'], ['After Ca2+ (Laid)', 'laidCa'],
+    ['# Collected (Squeezed)', 'sqQty'], ['Appearance (Squeezed)', 'sqApp'], ['After Ca2+ (Squeezed)', 'sqCa'],
+    ['MMR H2O source', 'water'], ['Notes', 'comments']],
+
   // Only for "Import legacy records": old water-source spellings in your form, lower case, and the choice each is read as.
   legacyWater: { 'milliq': 'MilliQ', 'milli-q': 'MilliQ', 'ro': 'RO', '-': '' }
 };
@@ -484,6 +496,13 @@ const DEFAULTS = {
     appearance: { 'Great': 4, 'Good': 3, 'Not bad': 2, 'Bad': 1, 'None': 0 },
     quantity: { 'Many': 3, 'Normal': 2, 'Few': 1, 'None': 0 }
   },
+  // Housing systems, each a run of tanks: { name: 'A', tanks: [1, 12] } is Tank 1 to Tank 12. Empty: the "system" column shows the tank number.
+  systems: [],
+  // Vet view columns, left to right: [heading, field]. The fields are listed in VET_FIELDS in Code.gs; '' leaves the column empty.
+  vetColumns: [['Animal ID', 'frog'], ['System #', 'system'], ['Arrival Date', 'arrival'], ['Source', 'source'], ['Collection Date', 'collection'],
+    ['# Collected (Laid)', 'laidQty'], ['Appearance (Laid)', 'laidApp'], ['After Ca2+ (Laid)', 'laidCa'],
+    ['# Collected (Squeezed)', 'sqQty'], ['Appearance (Squeezed)', 'sqApp'], ['After Ca2+ (Squeezed)', 'sqCa'],
+    ['MMR H2O source', 'water'], ['Notes', 'comments']],
   // Old water-source spellings in the legacy form, lower case, and the choice each is read as.
   legacyWater: { 'milliq': 'MilliQ', 'milli-q': 'MilliQ', 'ro': 'RO', '-': '' }
 };
@@ -516,9 +535,29 @@ const MATCH_COLS = ['Time', 'User', 'Tank', 'Chosen ID', 'Suggested ID', 'Agreed
 const TIMING_COLS = ['Time', 'User', 'Version', 'Animal ID', 'Tank', 'Tank opened', 'Photo (s)', 'Crop (s)', 'Match (s)', 'Picked (s)', 'Saved (s)',
   'Photos taken', 'Back found automatically', 'Crop adjusted', 'Compare opens', 'Tank opens', 'Resting frogs tried', 'Match ms', 'Photo size', 'Device', 'Matcher load ms',
   'Earlier tanks (s)'];
-const VET_COLS = ['Animal ID', 'System #', 'Arrival Date', 'Source', 'Collection Date', '# Collected (Laid)', 'Appearance (Laid)',
-  'After Ca2+ (Laid)', '# Collected (Squeezed)', 'Appearance (Squeezed)', 'After Ca2+ (Squeezed)', 'MMR H2O source', 'Notes',
-  'Fertilized', '% viable pre-injection', '% viable post-injection'];
+// What a Vet view column can show (the vetColumns setting). r: a collected record, f: its frog. text: kept as plain text in the sheet.
+const VET_FIELDS = {
+  frog: { get: function (r) { return r.frog; } },
+  system: { text: true, get: function (r, f) { return system_(f.tank); } },
+  tank: { get: function (r, f) { return f.tank || ''; } },
+  arrival: { text: true, get: function (r, f) { return f.arrival || ''; } },
+  source: { text: true, get: function (r, f) { return f.source || ''; } },
+  frogNotes: { text: true, get: function (r, f) { return f.notes || ''; } },
+  priming: { text: true, get: function (r) { return r.priming; } },
+  collection: { text: true, get: function (r) { return r.collection; } },
+  name: { text: true, get: function (r) { return r.name; } },
+  water: { text: true, get: function (r) { return r.water; } },
+  laidQty: { text: true, get: function (r) { return r.laidQty; } },
+  laidApp: { text: true, get: function (r) { return r.laidApp; } },
+  laidCa: { text: true, get: function (r) { return r.laidCa; } },
+  sqQty: { text: true, get: function (r) { return r.sqQty; } },
+  sqApp: { text: true, get: function (r) { return r.sqApp; } },
+  sqCa: { text: true, get: function (r) { return r.sqCa; } },
+  activity: { get: function (r) { return r.activity; } },
+  score: { get: function (r) { const v = cycleScore_(r); return v === null ? '' : v; } },
+  comments: { text: true, get: function (r) { return r.comments; } },
+  '': { get: function () { return ''; } }
+};
 const CHECK_COLS = ['Source sheet', 'Row', 'Animal ID', 'Issue', 'Detail'];
 
 // How old spellings are read during the import. The original text is kept in "Original values".
@@ -952,20 +991,39 @@ function applyExchange(tank) {
 
 function rebuildVetView() { rebuildVet_(); }
 
-// For the veterinary staff. Same columns as the legacy "Shared with ULAM" sheet, rebuilt from Records whenever a record changes.
+// The housing system a tank belongs to (systems setting), or the tank number when no system lists it.
+function system_(tank) {
+  const t = Number(tank), hit = setting_('systems').filter(function (x) {
+    if (!x || !Array.isArray(x.tanks) || x.tanks.length !== 2) throw new Error('systems in Settings: each needs a name and tanks: [first, last].');
+    return t >= Number(x.tanks[0]) && t <= Number(x.tanks[1]);
+  })[0];
+  return hit ? s_(hit.name) : (tank || '');
+}
+
+// The vetColumns setting, checked: [{ heading, field }].
+function vetColumns_() {
+  return setting_('vetColumns').map(function (c) {
+    if (!Array.isArray(c) || !(s_(c[1]) in VET_FIELDS)) throw new Error('vetColumns in Settings: "' + c + '" is not [heading, field]. Fields: ' + Object.keys(VET_FIELDS).filter(String).join(', ') + ", or ''.");
+    return { heading: s_(c[0]), field: VET_FIELDS[s_(c[1])] };
+  });
+}
+
+// For the veterinary staff: one row per collected record, columns from the vetColumns setting. Rebuilt whenever a record changes.
 function rebuildVet_() {
-  const frogs = {};
+  const cols = vetColumns_(), frogs = {};
   readFrogs_().forEach(function (f) { frogs[f.id] = f; });
   const rows = readRecords_().filter(function (r) { return r.collection; }).sort(function (a, b) {
     return a.collection < b.collection ? -1 : a.collection > b.collection ? 1 : a.frog - b.frog;
   }).map(function (r) {
     const f = frogs[r.frog] || {};
-    return [r.frog, f.tank || '', f.arrival || '', f.source || '', r.collection, r.laidQty, r.laidApp, r.laidCa, r.sqQty, r.sqApp, r.sqCa,
-      r.water, r.comments, '', '', ''];
+    return cols.map(function (c) { return c.field.get(r, f); });
   });
-  const sh = sheet_(SHEETS.VET);
-  if (sh.getLastRow() > 1) sh.getRange(2, 1, sh.getLastRow() - 1, VET_COLS.length).clearContent();
-  if (rows.length) sh.getRange(2, 1, rows.length, VET_COLS.length).setValues(rows);
+  const sh = sheet_(SHEETS.VET), wide = Math.max(cols.length, sh.getLastColumn());
+  // The whole sheet is rewritten, headings too, so a change to vetColumns shows on the next rebuild.
+  if (sh.getLastRow() > 0) sh.getRange(1, 1, sh.getLastRow(), wide).clearContent();
+  sh.getRange(1, 1, 1, cols.length).setValues([cols.map(function (c) { return c.heading; })]);
+  cols.forEach(function (c, i) { sh.getRange(1, i + 1, sh.getMaxRows(), 1).setNumberFormat(c.field.text ? '@' : 'General'); });
+  if (rows.length) sh.getRange(2, 1, rows.length, cols.length).setValues(rows);
 }
 
 /* ------------------------------------------------------------------ setup and import (run from the spreadsheet menu) */
@@ -993,7 +1051,7 @@ function setup() {
   ensureSheet_(SHEETS.PHOTOS, PHOTO_COLS, [1, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
   ensureSheet_(SHEETS.MATCH, MATCH_COLS, [1, 2, 7]);
   if (setting_('recordTiming')) ensureSheet_(SHEETS.TIMING, TIMING_COLS, [1, 2, 3, 6, 13, 14, 17, 19, 20]);
-  ensureSheet_(SHEETS.VET, VET_COLS, [3, 4, 5, 13]);
+  ensureSheet_(SHEETS.VET, vetColumns_().map(function (c) { return c.heading; }));
   ensureSheet_(SHEETS.CHECK, CHECK_COLS, [5]);
   if (frogs.getLastRow() === 1 && typeof ROSTER !== 'undefined') {
     const stamp = now_();
