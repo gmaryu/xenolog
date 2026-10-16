@@ -4,7 +4,8 @@
   var MATCH_MIN = 10;      // matching points needed before a frog is called a match; different frogs gave 5 or fewer in tests
   var S = { data: null, thumbs: {}, basket: [], tab: 'priming', view: { name: 'tanks' }, shot: null, warn: null, confirm: null,
     big: false, error: '', tankPhotos: {}, feat: {}, detail: null, full: {}, addPhoto: null, busy: 0,
-    trial: null, since: fresh() };   // timing of the frog being identified, written to the Timing sheet
+    trial: null, since: fresh(),     // timing of the frog being identified, written to the Timing sheet
+    check: null };                   // the roster check: kept until the page is reloaded
   // Counts since the last frog was chosen; they carry over when the person goes back and opens another tank.
   function fresh() { return { first: null, opens: 0, photos: 0, compares: 0, resting: [] }; }
 
@@ -375,7 +376,7 @@
   }
 
   function vFrogs() {
-    var h = head('Frogs') + who() + '<div class="btnrow"><button class="btn" data-act="go" data-id="add" id="btn-add">Add a frog</button><button class="btn ghost" data-act="go" data-id="exchange" id="btn-exchange">Tank exchange</button></div>' +
+    var h = head('Frogs') + who() + '<div class="btnrow"><button class="btn" data-act="go" data-id="add" id="btn-add">Add a frog</button><button class="btn ghost" data-act="go" data-id="exchange" id="btn-exchange">Tank exchange</button><button class="btn ghost" data-act="go" data-id="check" id="btn-check">Roster check</button></div>' +
       candidates() +
       '<h2>All frogs</h2><label class="field"><span>Find by ID</span><input type="text" inputmode="numeric" id="frog-search" placeholder="e.g. 27"></label><div class="stack" id="frog-list">';
     S.data.frogs.slice().sort(function (a, b) { return (b.inColony - a.inColony) || (a.id - b.id); }).forEach(function (f) {
@@ -415,6 +416,23 @@
       else h += '<button class="btn danger" data-act="askRemove" data-id="' + id + '" id="btn-remove">Remove this frog</button>';
     }
     return h;
+  }
+
+  // The grid of every pair needs a wide screen; on a phone the page says where to see it.
+  function wide() { return window.innerWidth >= 720; }
+  function vCheck() {
+    var c = S.check, r = c && c.result, h = head('Roster check', true);
+    h += '<p class="note">Compares every photo of the frogs in the colony with every other one and lists where the photos and the IDs disagree: photos filed under one ID that do not match each other, and photos filed under different IDs that do. It uses the pattern check, so it is a suggestion; look at the photos before changing anything. Nothing is saved.</p>';
+    if (c && c.running) return h + '<p class="note" id="check-msg" role="status">' + esc(c.msg) + '</p><button class="btn ghost" data-act="stopCheck" id="btn-check-stop">Stop</button>' + (r ? '<p class="note">The last result is shown again if you stop.</p>' : '');
+    if (c && c.error) h += '<div class="alert danger">' + esc(c.error) + '</div>';
+    if (r && c.stale) h += '<div class="alert rest">Photos have changed since this check. Check again to include the changes.</div>';
+    var n = colony().reduce(function (t, f) { return t + f.photos; }, 0);
+    h += '<button class="btn' + (r ? ' ghost' : '') + '" data-act="runCheck" id="btn-check-run">' + (r ? 'Check again' : 'Check every photo') + '</button>';
+    if (!r) return h + '<p class="note">' + plural(n, 'photo') + ', ' + plural(n * (n - 1) / 2, 'pair') + '. On a phone this can take a few minutes; keep the screen on. It can be stopped.</p>';
+    var link = function (id, inner) { return '<button class="open" data-act="checkFrog" data-id="' + id + '" aria-label="Open #' + id + '">' + inner + '</button>'; };
+    return h + '<p class="note">Checked at ' + r.at + '. Tap a photo or an ID to open the frog, for example to adjust a crop.</p>' +
+      RosterView.html(r.photos, r.pairs, r.F, r.secs, { link: link, grid: wide(),
+        gridNote: 'On a computer this page also shows every pair as a grid, which makes a mix-up easy to spot. Open XenoLog there, go to Frogs and choose Roster check.' });
   }
 
   function vHist(id, n) {
@@ -463,8 +481,10 @@
     if (v.name === 'tanks') h = vTanks(); else if (v.name === 'tank') h = vTank(v.id); else if (v.name === 'compare') h = vCompare(v);
     else if (v.name === 'tape') h = vTape(v.ids); else if (v.name === 'inuse') h = vInuse(); else if (v.name === 'use') h = vUse(v.id);
     else if (v.name === 'frogs') h = vFrogs(); else if (v.name === 'frog') h = vFrog(v.id); else if (v.name === 'hist') h = vHist(v.id, v.n);
-    else if (v.name === 'add') h = vAdd(); else h = vExchange();
+    else if (v.name === 'add') h = vAdd(); else if (v.name === 'check') h = vCheck(); else h = vExchange();
     app.innerHTML = h;
+    app.className = v.name === 'check' ? 'wide' : '';
+    if (v.name === 'check' && S.check && S.check.result && !S.check.running && wide()) RosterView.drawGrid(S.check.result.pairs);
     var n = inUse().length;
     document.getElementById('tabs').innerHTML = [['priming', 'Priming'], ['inuse', 'In use' + (n ? ' ' + n : '')], ['frogs', 'Frogs']].map(function (t) {
       return '<button data-act="tab" data-id="' + t[0] + '" id="tab-' + t[0] + '"' + (S.tab === t[0] ? ' aria-current="page"' : '') + '>' + t[1] + '</button>';
@@ -472,8 +492,8 @@
   }
   function go(view, keepScroll) { S.view = view; S.warn = null; S.confirm = null; S.error = ''; render(); if (!keepScroll) window.scrollTo(0, 0); }
   var home = { priming: 'tanks', inuse: 'inuse', frogs: 'frogs' };
-  function openFrog(id) {
-    S.detail = null; go({ name: 'frog', id: id });
+  function openFrog(id, from) {
+    S.detail = null; go({ name: 'frog', id: id, from: from });
     return call('getFrogDetail', [id], true).then(function (d) {
       setDetail(d);
       if (S.view.name === 'frog' && S.view.id === id) render();
@@ -493,10 +513,40 @@
         call('savePhotoDerived', [[{ photoId: p.photoId, thumb: q.thumb, pattern: q.pattern, emb: '', crop: 'manual' }]], true).then(function () {
           busy(-1); p.pattern = q.pattern; p.thumb = q.thumb; p.crop = 'manual';
           if (p.last) S.thumbs[id] = q.thumb;
-          delete S.tankPhotos[frog(id).tank]; render(); toast('Crop saved');
+          delete S.tankPhotos[frog(id).tank]; photosChanged(); render(); toast('Crop saved');
         }).catch(function (e) { busy(-1); fail(e); });
       });
     }).catch(function (e) { busy(-1); fail(e); });
+  }
+  function photosChanged() { if (S.check && S.check.result) S.check.stale = true; }
+  // Every photo against every other, as on the check page. Slow on a phone: it can be stopped, and it keeps going while other screens are open.
+  async function runCheck() {
+    var prev = S.check, c = S.check = { running: true, stop: false, msg: 'Reading the photos...', result: null, stale: false, error: '' };
+    var say = function (t) { c.msg = t; var el = document.getElementById('check-msg'); if (el) el.textContent = t; };
+    render();
+    try {
+      var photos = await call('getRosterPhotos', [], true), started = Date.now(), feats = [];
+      say('Loading the pattern check...');
+      if (!await Matcher.load()) throw new Error('The pattern check could not be loaded. Check the internet connection and try again.');
+      for (var i = 0; i < photos.length && !c.stop; i++) {
+        say('Reading the back patterns: ' + (i + 1) + ' of ' + photos.length + '...');
+        var f = /^data:image\//.test(photos[i].pattern) ? await featuresOf(photos[i]) : null;
+        feats[i] = f && f.n >= 4 ? f : null;
+      }
+      var from = Date.now();
+      var pairs = c.stop ? null : await RosterCheck.scoreAll(photos, feats, Matcher.count, function (done, total) {
+        var left = done ? Math.round((Date.now() - from) / done * (total - done) / 1000) : null;
+        say('Comparing: ' + done + ' of ' + plural(total, 'pair') + (left !== null && done < total ? ', about ' + (left < 90 ? left + ' s' : Math.round(left / 60) + ' min') + ' left' : '') + '...');
+      }, function () { return c.stop; });
+      if (pairs) {
+        var frogs = S.data.frogs.map(function (g) { return { id: g.id, inColony: g.inColony, tank: g.tank }; }), d = new Date();
+        c.result = { photos: photos, pairs: pairs, F: RosterCheck.findings(photos, feats, pairs, frogs), secs: Math.round((Date.now() - started) / 100) / 10,
+          at: d.getHours() + ':' + (d.getMinutes() < 10 ? '0' : '') + d.getMinutes() };
+      }
+    } catch (e) { c.error = (e && e.message ? e.message : String(e)).replace(/^Error:\s*/, ''); }
+    c.running = false;
+    if (!c.result && prev && prev.result) { c.result = prev.result; c.stale = prev.stale; }   // stopped or failed: the last result stays
+    if (S.check === c && S.view.name === 'check') render();
   }
   function pick(id) {
     var f = frog(id), s = S.shot, t = f.tank;
@@ -557,7 +607,8 @@
     if (act === 'tab') { S.tab = id; S.shot = null; go({ name: home[id] }); reload(true); }
     else if (act === 'back') {
       if (v.name === 'compare') go({ name: 'tank', id: v.tank });
-      else if (v.name === 'hist') go({ name: 'frog', id: v.id });
+      else if (v.name === 'hist') go({ name: 'frog', id: v.id, from: v.from });
+      else if (v.name === 'frog' && v.from === 'check') go({ name: 'check' });
       else { if (v.name !== 'tank') S.shot = null; S.addPhoto = null; go({ name: home[S.tab] }); }   // a photo taken in the wrong tank waits on the list
     }
     else if (act === 'dismiss') { S.error = ''; render(); }
@@ -606,13 +657,16 @@
       }).catch(fail);
     }
     else if (act === 'openFrog') openFrog(+id);
-    else if (act === 'editHist') go({ name: 'hist', id: v.id, n: +id });
+    else if (act === 'editHist') go({ name: 'hist', id: v.id, n: +id, from: v.from });
+    else if (act === 'checkFrog') openFrog(+id, 'check');
+    else if (act === 'runCheck') runCheck();
+    else if (act === 'stopCheck') { if (S.check) { S.check.stop = true; S.check.msg = 'Stopping...'; render(); } }
     else if (act === 'recrop') recrop(v.id, S.detail.photos[+id]);
     else if (act === 'askRemovePhoto') { S.confirm = 'photo' + S.detail.photos[+id].photoId; render(); }
     else if (act === 'removePhoto') {
       var fid = v.id, rp = S.detail.photos[+id];
       call('removePhoto', [fid, rp.photoId]).then(function (d) {
-        S.confirm = null; setDetail(d); delete S.tankPhotos[frog(fid).tank]; frog(fid).photos = d.photos.length;
+        S.confirm = null; setDetail(d); delete S.tankPhotos[frog(fid).tank]; frog(fid).photos = d.photos.length; photosChanged();
         if (rp.last) delete S.thumbs[fid];
         if (S.detail.photos.length) S.thumbs[fid] = S.detail.photos[S.detail.photos.length - 1].thumb || S.thumbs[fid];
         render(); toast('Photo removed');
@@ -636,7 +690,7 @@
       shoot(file, function (p) {
         busy(1);
         call('addPhoto', [id, { full: p.full, pattern: p.pattern, thumb: p.thumb, emb: '', crop: p.crop }], true)
-          .then(function (d) { busy(-1); S.thumbs[id] = p.thumb; delete S.tankPhotos[frog(id).tank]; frog(id).photos++; setDetail(d); render(); toast('Photo added'); })
+          .then(function (d) { busy(-1); S.thumbs[id] = p.thumb; delete S.tankPhotos[frog(id).tank]; frog(id).photos++; setDetail(d); photosChanged(); render(); toast('Photo added'); })
           .catch(function (x) { busy(-1); fail(x); });
       });
     }

@@ -67,5 +67,9 @@ R.scoreAll(photos, feats, count, () => ticks++).then(pairs => {
   const csv = R.pairsCsv(photos, pairs).trim().split('\n');
   assert.equal(csv.length, pairs.length + 1);
   assert.equal(csv[1], 'a,1,2026-10-01,b,1,2026-10-20,yes,60');
+  // Stopped: resolves to null instead of the pairs.
+  return R.scoreAll(photos, feats, count, null, () => true);
+}).then(stopped => {
+  assert.equal(stopped, null);
   console.log('ALL CHECK TESTS PASSED');
 }).catch(e => { console.error(e); process.exit(1); });

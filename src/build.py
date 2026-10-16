@@ -19,6 +19,8 @@ page = lambda extra: f"""<!DOCTYPE html>
 {r('body.html')}{extra}<script>
 {r('matcher.js')}</script>
 <script>
+{r('rostercheck.js')}{r('rosterview.js')}</script>
+<script>
 {r('app.js')}</script>
 </body>
 </html>
@@ -97,7 +99,7 @@ if (d.parent / 'docs').is_dir():      # only in the repository, not in a copy co
 {r('check-body.html')}<script>
 {r('matcher.js')}</script>
 <script>
-{r('rostercheck.js')}</script>
+{r('rostercheck.js')}{r('rosterview.js')}</script>
 <script>
 {r('check.js')}</script>
 </body>

@@ -57,7 +57,7 @@ function setting_(key) {
 const PHOTOS_PER_FROG = 5;      // newest photos sent to the page for comparison
 const CELL_LIMIT = 49000;       // Sheets refuses cells over 50,000 characters
 
-const APP_VERSION = '1.3.0';   // written into the Timing sheet, so collected data can be tied to a release
+const APP_VERSION = '1.4.0';   // written into the Timing sheet, so collected data can be tied to a release
 const SHEETS = { FROGS: 'Frogs', RECORDS: 'Records', PHOTOS: 'Photos', MATCH: 'Match log', TIMING: 'Timing', VET: 'Vet view', CHECK: 'Import check' };
 const LEGACY = { FORM: 'Form Responses 1', SHARED: 'Shared with ULAM' };
 
@@ -300,6 +300,18 @@ function getTankPhotos(ids) {
   const index = photoIndex_(), out = {};
   (ids || []).forEach(function (id) { out[id] = photosOf_(index, Number(id), PHOTOS_PER_FROG, true); });
   return out;
+}
+
+/** Every photo the app shows of the frogs in the colony, with its back image and crop, for the roster check. Two columns read in one go each. */
+function getRosterPhotos() {
+  const index = photoIndex_(), inColony = {};
+  if (!index.length) return [];
+  readFrogs_().forEach(function (f) { if (f.inColony) inColony[f.id] = true; });
+  const sh = sheet_(SHEETS.PHOTOS), n = sh.getLastRow() - 1;
+  const pattern = sh.getRange(2, 7, n, 1).getValues(), crop = sh.getRange(2, 9, n, 1).getValues();
+  return index.filter(function (p) { return inColony[p.frog]; }).map(function (p) {
+    return { photoId: p.photoId, frog: p.frog, date: p.date, kind: p.kind, pattern: s_(pattern[p.row - 2][0]), crop: s_(crop[p.row - 2][0]) };
+  });
 }
 
 /** Thumbnail and back pattern that the page worked out for a photo that had none. (emb is unused now and stored empty.) */

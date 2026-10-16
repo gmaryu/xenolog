@@ -138,3 +138,32 @@ label.btn input { position: absolute; opacity: 0; width: 1px; height: 1px; point
 #crop-frame { position: absolute; border: 2px solid var(--accent-fg); outline: 2px solid var(--accent); box-shadow: 0 0 0 2000px rgba(0, 0, 0, .5); touch-action: none; cursor: move; }
 input[type=range] { width: 100%; accent-color: var(--accent); }
 .sr-file { position: fixed; left: 0; bottom: 0; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+/* Roster check result (rosterview.js), in the app and on the check page */
+#app.wide { max-width: 960px; }
+.pairs { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 8px; }
+.finding { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.groups, .photos { display: flex; flex-wrap: wrap; gap: 8px; }
+.groups { gap: 12px; }
+.photos figure { margin: 0; display: flex; flex-direction: column; gap: 4px; width: 132px; }
+.photos img, .photos .noimg { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 4px; background: var(--line); display: block; }
+.photos figcaption { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.photos figcaption strong { color: var(--fg); }
+.group { border-left: 3px solid var(--line); padding-left: 8px; }
+table.bins { border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; width: 100%; max-width: 560px; }
+table.bins th, table.bins td { border-bottom: 1px solid var(--line); padding: 4px 8px; text-align: right; }
+table.bins th { vertical-align: bottom; }
+table.bins th:first-child, table.bins td:first-child { text-align: left; }
+details summary { cursor: pointer; font-size: 13.5px; }
+details > div { margin-top: 8px; }
+.btn.inline { width: auto; }
+.heat { display: flex; flex-direction: column; gap: 8px; }
+.heat-wrap { position: relative; overflow-x: auto; }
+.heat canvas { display: block; cursor: pointer; }
+.heat .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12.5px; color: var(--muted); }
+.heat .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: -2px; margin-right: 5px; }
+.heat .legend i.zero { border: 1px solid var(--line); }
+.heat .tip { position: absolute; z-index: 3; pointer-events: none; background: var(--fg); color: var(--bg); font-size: 12px; padding: 6px 8px; border-radius: 4px; max-width: 220px; }
+.heat .tip strong { display: block; font-size: 13px; }
+.open { all: unset; cursor: pointer; display: block; }
+.chips .open { display: inline-block; }
+.open:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }

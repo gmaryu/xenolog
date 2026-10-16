@@ -12,7 +12,7 @@ This repository is public. **Never add lab data here**: real rosters, frog photo
 - `apps-script/Index.html` – **generated**. Edit `src/` and rebuild.
 - `src/app.js` – page logic. `src/matcher.js` – photo crop and matching. `src/style.css`, `src/body.html`.
 - `src/fakes.js` – in-memory stand-ins for SpreadsheetApp, DriveApp and friends.
-- `src/rostercheck.js` – roster check: every photo against every other, and what disagrees with the IDs. `src/check.js` and `src/check-body.html` are its page; `docs/check/index.html` is **generated** from them by `build.py`. It runs outside the app on a computer and is not deployed to Apps Script, so it can change during data collection. Keep its `MATCH_MIN` equal to `app.js`'s (the test checks).
+- `src/rostercheck.js` – roster check: every photo against every other, and what disagrees with the IDs. `src/rosterview.js` – its result as HTML and the grid of every pair. Both are in the app (Frogs > Roster check, `getRosterPhotos` in `Code.gs`) and in the page outside it: `src/check.js` and `src/check-body.html`, from which `build.py` **generates** `docs/check/index.html`. Only `check.js` and `check-body.html` can change during data collection without a release. Keep `MATCH_MIN` equal to `app.js`'s (the test checks).
 - `src/demo.js` – made-up colony for the public demo. `docs/demo/index.html` is **generated** from it by `build.py`; commit it with the rebuild.
 - `docs/` – GitHub Pages: forwarding page and icons.
 

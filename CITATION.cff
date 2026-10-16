@@ -16,7 +16,7 @@ authors:
     family-names: Maryu
 repository-code: "https://github.com/gmaryu/xenolog"
 license: MIT
-version: "1.3.0"
+version: "1.4.0"
 keywords:
   - Xenopus laevis
   - colony management

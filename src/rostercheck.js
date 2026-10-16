@@ -1,6 +1,6 @@
 /* Roster check: compares every photo with every other photo and lists where the photos and the IDs disagree.
-   Used by the check page (docs/check/); runs in a browser, and in Node for the tests. Holds no lab data:
-   the photos come from the person's own sheet export or files and never leave the computer. */
+   Used by the app (Frogs > Roster check) and the check page (docs/check/); runs in a browser, and in Node for the tests.
+   Holds no lab data: the photos come from the app's sheet, or from the person's own export or files on the check page. */
 var RosterCheck = (function () {
   var MATCH_MIN = 10;   // the same as MATCH_MIN in app.js: matching points needed to call two photos the same frog
   var NEAR_MIN = 6;     // 6 to 9 points between different IDs: not a match, but more than different frogs gave in tests (5 or fewer)
@@ -56,9 +56,9 @@ var RosterCheck = (function () {
   /**
    * Counts matching points for every pair of photos that have a description (feats[i], from Matcher.describe).
    * count is Matcher.count. progress(done, total) is called now and then; the work pauses there so the page can redraw.
-   * Resolves to [{ a, b, score }] with a < b as indexes into photos.
+   * Resolves to [{ a, b, score }] with a < b as indexes into photos, or to null when stopped() (optional) turns true.
    */
-  function scoreAll(photos, feats, count, progress) {
+  function scoreAll(photos, feats, count, progress, stopped) {
     var idx = [], pairs = [], i, j;
     for (i = 0; i < photos.length; i++) if (feats[i]) idx.push(i);
     for (i = 0; i < idx.length; i++) for (j = i + 1; j < idx.length; j++) pairs.push({ a: idx[i], b: idx[j], score: 0 });
@@ -66,6 +66,7 @@ var RosterCheck = (function () {
     return new Promise(function (ok, fail) {
       (function next() {
         try {
+          if (stopped && stopped()) { ok(null); return; }
           var until = Date.now() + 100;      // work in slices of about 0.1 s, then let the page redraw
           while (k < pairs.length && Date.now() < until) { pairs[k].score = count(feats[pairs[k].a], feats[pairs[k].b]); k++; }
           if (progress) progress(k, pairs.length);

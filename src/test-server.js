@@ -134,6 +134,10 @@ const p10 = getFrogDetail(10).photos.length; addPhoto(10, photo); let d10 = getF
 const wrong = d10.photos[d10.photos.length - 1].photoId; d10 = removePhoto(10, wrong); assert.equal(d10.photos.length, p10);
 assert.ok(!getTankPhotos([10])[10].some(p => p.photoId === wrong)); assert.throws(() => removePhoto(10, wrong), /not found/); assert.throws(() => removePhoto(11, d10.photos[0].photoId), /not found/);
 assert.equal(FAKE.book.sheets['Photos'].data.find(r => r[0] === wrong)[3], 'removed');
+// roster check: every photo still shown of the frogs in the colony, with its back image and crop
+const rp = getRosterPhotos(); assert.ok(!rp.some(p => p.photoId === wrong)); assert.ok(rp.every(p => F(p.frog).inColony));
+assert.equal(rp.length, photoIndex_().filter(p => F(p.frog).inColony).length);
+assert.deepEqual(rp.find(p => p.photoId === tp[10][0].photoId), { photoId: tp[10][0].photoId, frog: 10, date: tp[10][0].date, kind: tp[10][0].kind, pattern: 'P2', crop: 'centre' });
 // cancel a priming entered by mistake
 st = savePriming({ items: [{ id: 20, photo, match: null }, { id: 21, photo: null, match: null }] });
 assert.equal(F(20).photos, 1); assert.equal(F(20).restUntil, '2027-01-13');
