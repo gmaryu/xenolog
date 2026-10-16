@@ -1,5 +1,7 @@
 # XenoLog
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23404587.svg)](https://doi.org/10.5281/zenodo.23404587)
+
 A phone-friendly web app for a *Xenopus laevis* colony. It records which frog was primed and when, enforces a rest period between uses, collects the egg record on the day of the experiment, and keeps everything in a Google Spreadsheet you already own.
 
 It runs as a Google Apps Script web app bound to a spreadsheet. There is no server to maintain.
@@ -142,6 +144,10 @@ node test-check.js        # runs the roster check's logic (rostercheck.js) on ma
 ## Related work
 
 - XIBBIT (Tomanin et al., bioRxiv 2026) identifies *Xenopus laevis* by dorsal pattern with a classifier trained per facility and includes colony management. If you can photograph each frog many times and want colony-wide identification, look there first.
+
+## Citation
+
+Each release is archived on Zenodo. To cite XenoLog in general, use [10.5281/zenodo.23404587](https://doi.org/10.5281/zenodo.23404587), which always resolves to the latest version. To name the version you used, cite that release's own DOI, listed on the same Zenodo page; the Timing sheet records which version took each measurement. `CITATION.cff` has the details, and GitHub's "Cite this repository" uses it.
 
 ## Licence
 
